@@ -1,0 +1,21 @@
+.app {
+  min-height: 100vh;
+}
+.header {
+  padding: var(--conduit-space-4) var(--conduit-space-6);
+  border-bottom: 1px solid var(--conduit-color-border);
+  background: var(--conduit-color-surface);
+}
+.brand {
+  font-size: var(--conduit-font-size-lg);
+  font-weight: 600;
+  color: var(--conduit-color-text);
+  text-decoration: none;
+}
+.main {
+  padding: var(--conduit-space-6);
+}
+.muted {
+  color: var(--conduit-color-text-muted);
+  max-width: 60ch;
+}
