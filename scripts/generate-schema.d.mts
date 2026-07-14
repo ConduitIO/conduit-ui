@@ -1,1 +1,4 @@
-export function generateSchemaTypes(swaggerPath: string): Promise<string>;
+export function generateSchemaTypes(
+  swaggerPath: string,
+  opts?: { verbose?: boolean }
+): Promise<string>;

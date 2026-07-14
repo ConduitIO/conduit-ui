@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := build
+
 .PHONY: install gen build test lint fmt typecheck ci
 
 install:

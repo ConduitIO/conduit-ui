@@ -16,7 +16,7 @@ export type InspectKind = 'connector' | 'processor-in' | 'processor-out';
 
 /** Builds the ws(s):// URL for an Inspect stream from an http(s) base. */
 export function inspectURL(baseUrl: string, kind: InspectKind, id: string): string {
-  const wsBase = baseUrl.replace(/^http/, 'ws');
+  const wsBase = baseUrl.replace(/\/$/, '').replace(/^http/, 'ws');
   const enc = encodeURIComponent(id);
   switch (kind) {
     case 'connector':

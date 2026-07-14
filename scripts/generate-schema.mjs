@@ -6,13 +6,19 @@ import { readFileSync } from 'node:fs';
 import openapiTS, { astToString } from 'openapi-typescript';
 import swagger2openapi from 'swagger2openapi';
 
-export async function generateSchemaTypes(swaggerPath) {
+export async function generateSchemaTypes(swaggerPath, { verbose = false } = {}) {
   const swagger = JSON.parse(readFileSync(swaggerPath, 'utf8'));
-  const { openapi } = await swagger2openapi.convertObj(swagger, {
+  const result = await swagger2openapi.convertObj(swagger, {
     patch: true,
     warnOnly: true,
     anchors: true,
   });
-  const ast = await openapiTS(openapi, { rootTypes: true });
+  if (verbose) {
+    // Surface conversion drift: an unexpectedly large/changed patch count or any
+    // warning on re-vendor is worth a human glance (warnOnly makes them silent).
+    console.warn(`swagger2openapi: ${result.patches ?? 0} patch(es) applied`);
+    for (const w of result.warnings ?? []) console.warn(`swagger2openapi warning: ${w}`);
+  }
+  const ast = await openapiTS(result.openapi, { rootTypes: true });
   return astToString(ast);
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { axe } from 'vitest-axe';
+import axe from 'axe-core';
 import { App } from './App';
 import '../tokens/tokens.css';
 
@@ -33,7 +33,7 @@ describe('App shell', () => {
     const { container } = renderApp('/');
     // color-contrast requires a real layout/canvas engine jsdom lacks; it's
     // verified with real-browser tooling, not here.
-    const results = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
+    const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(results.violations).toEqual([]);
   });
 

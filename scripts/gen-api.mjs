@@ -9,6 +9,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const schema = path.join(root, 'src', 'api', 'api.swagger.json');
 const out = path.join(root, 'src', 'api', 'schema.d.ts');
 
-const ts = await generateSchemaTypes(schema);
+const ts = await generateSchemaTypes(schema, { verbose: true });
 writeFileSync(out, ts);
 console.log(`generated ${path.relative(root, out)} from ${path.relative(root, schema)}`);
