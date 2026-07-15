@@ -145,6 +145,11 @@ function TopologySection({
 
   const data = topology.data;
   const model = buildTopologyModel(pipeline, data.connectors, data.processors);
+  // Only the "no connectors configured" message when there is genuinely nothing to
+  // show — a pipeline with zero connectors but dangling pipeline-level or orphan
+  // processors (mid-reconfiguration) must still render them, not hide them.
+  const isTrulyEmpty =
+    model.isEmpty && model.pipelineProcessors.length === 0 && model.orphanProcessors.length === 0;
 
   return (
     <>
@@ -158,7 +163,7 @@ function TopologySection({
           Processor details are temporarily unavailable; showing connectors only.
         </p>
       )}
-      {model.isEmpty ? (
+      {isTrulyEmpty ? (
         <p className={styles.emptyGraph}>
           No connectors configured. Add them via <code>conduit pipelines</code> or a config file —
           this UI observes pipelines, it doesn’t author them.

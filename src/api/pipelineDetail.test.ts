@@ -103,6 +103,32 @@ describe('fetchTopology', () => {
       /HTTP 500/
     );
   });
+
+  it('propagates an aborted processors fetch (throws) rather than misreporting it as partial', async () => {
+    // An abort rejects the fetch (it never reaches the {error} tuple), so fetchTopology
+    // must throw — NOT return processorsUnavailable, which would mask a cancelled query.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: Request | string) => {
+        const url = typeof input === 'string' ? input : input.url;
+        if (url.includes('/v1/connectors')) {
+          return Promise.resolve(
+            new Response(JSON.stringify([{ id: 'c1', type: 'TYPE_SOURCE' }]), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            })
+          );
+        }
+        return Promise.reject(new DOMException('aborted', 'AbortError'));
+      })
+    );
+    const err = await fetchTopology(createConduitClient('http://engine'), 'p1').catch(
+      (e: unknown) => e
+    );
+    // It threw (propagated the abort) rather than resolving to a partial topology.
+    expect((err as { name?: string })?.name).toBe('AbortError');
+    expect(err).not.toHaveProperty('processorsUnavailable');
+  });
 });
 
 describe('detail query retry policy', () => {

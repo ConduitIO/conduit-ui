@@ -145,6 +145,19 @@ describe('PipelineDetailContent — states', () => {
     renderContent({ detail: q(pipeline({ connectorIds: [] })), topology: q(topo()) });
     expect(screen.getByText(/no connectors configured/i)).toBeTruthy();
   });
+
+  it('0 connectors but dangling processors still renders the graph, not the empty message', () => {
+    // A pipeline mid-reconfiguration: connectors deleted but processor config lingers.
+    // The processors must be visible (they are likely the problem), not hidden behind
+    // "no connectors configured".
+    renderContent({
+      detail: q(pipeline({ connectorIds: [], processorIds: ['a'] })),
+      topology: q(topo({ processors: [proc('a')] })),
+    });
+    expect(screen.queryByText(/no connectors configured/i)).toBeNull();
+    const graph = screen.getByRole('region', { name: /topology/i });
+    expect(within(graph).getByText('builtin:a')).toBeTruthy();
+  });
 });
 
 describe('PipelineDetailContent — resilience (AC9)', () => {
@@ -206,6 +219,9 @@ describe('PipelineDetailContent — a11y & scale', () => {
     const graph = screen.getByRole('region', { name: /topology/i });
     expect(within(graph).getAllByRole('listitem').length).toBeGreaterThan(0);
     expect(graph.textContent).toMatch(/data flows left to right/i);
+    // color-contrast is disabled because jsdom can't resolve color-mix()/custom
+    // properties — this asserts structural a11y, NOT verified AA contrast (that's
+    // checked with real-browser tooling, a known gap here).
     const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(results.violations).toEqual([]);
   });

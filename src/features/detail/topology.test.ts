@@ -145,4 +145,15 @@ describe('buildTopologyModel', () => {
     expect(m.sources[0]?.label).toBe('My Source');
     expect(m.sources[1]?.label).toBe('builtin:pg');
   });
+
+  it('dedupes duplicate ids so each renders at most once (React key safety)', () => {
+    const m = buildTopologyModel(
+      pipe({ connectorIds: ['s1', 's1'], processorIds: ['a', 'a'] }),
+      [conn('s1', 'TYPE_SOURCE', { processorIds: ['b', 'b'] })],
+      [proc('a'), proc('b')]
+    );
+    expect(m.sources.map((c) => c.id)).toEqual(['s1']);
+    expect(m.pipelineProcessors.map((p) => p.id)).toEqual(['a']);
+    expect(m.sources[0]?.processors.map((p) => p.id)).toEqual(['b']);
+  });
 });

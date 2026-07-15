@@ -75,12 +75,22 @@ function processorNode(
 }
 
 // Build the ordered processor chain for a set of ids, looking each up in the index.
+// `rendered` dedupes across all arrays (an id must produce at most one node — it's
+// used as a React key), while `consumed` tracks which real processor objects were
+// placed so orphans can be detected afterward.
 function resolveProcessors(
   ids: readonly string[] | undefined,
   index: Map<string, SchemaApiv1Processor>,
-  consumed: Set<string>
+  consumed: Set<string>,
+  rendered: Set<string>
 ): TopologyProcessorNode[] {
-  return (ids ?? []).map((id) => processorNode(index.get(id), id, consumed));
+  const out: TopologyProcessorNode[] = [];
+  for (const id of ids ?? []) {
+    if (rendered.has(id)) continue; // skip a duplicate id — one node per id
+    rendered.add(id);
+    out.push(processorNode(index.get(id), id, consumed));
+  }
+  return out;
 }
 
 export function buildTopologyModel(
@@ -94,8 +104,11 @@ export function buildTopologyModel(
   const processorIndex = new Map<string, SchemaApiv1Processor>();
   for (const p of processors) if (p.id) processorIndex.set(p.id, p);
 
-  // Track which processors we actually rendered, to detect orphans afterward.
+  // `consumed` = ids that matched a real processor object (for orphan detection);
+  // `renderedProcessors` = every id turned into a node (for dedupe / key safety).
   const consumed = new Set<string>();
+  const renderedProcessors = new Set<string>();
+  const seenConnectors = new Set<string>();
 
   const sources: TopologyConnectorNode[] = [];
   const destinations: TopologyConnectorNode[] = [];
@@ -105,6 +118,8 @@ export function buildTopologyModel(
   // connector (provisioning race) becomes a visible placeholder, not a silent gap.
   const connectorIds = pipeline.connectorIds ?? [];
   for (const id of connectorIds) {
+    if (seenConnectors.has(id)) continue; // one node per id (React key safety)
+    seenConnectors.add(id);
     const c = connectorIndex.get(id);
     if (!c) {
       // Unknown type (no object), so it can't be bucketed as source/destination.
@@ -115,7 +130,7 @@ export function buildTopologyModel(
       id,
       label: connectorLabel(c),
       plugin: c.plugin,
-      processors: resolveProcessors(c.processorIds, processorIndex, consumed),
+      processors: resolveProcessors(c.processorIds, processorIndex, consumed, renderedProcessors),
       unavailable: false,
     };
     switch (c.type) {
@@ -131,7 +146,12 @@ export function buildTopologyModel(
     }
   }
 
-  const pipelineProcessors = resolveProcessors(pipeline.processorIds, processorIndex, consumed);
+  const pipelineProcessors = resolveProcessors(
+    pipeline.processorIds,
+    processorIndex,
+    consumed,
+    renderedProcessors
+  );
 
   // Any processor returned but never referenced by an ordered array is an orphan.
   const orphanProcessors: TopologyProcessorNode[] = processors
