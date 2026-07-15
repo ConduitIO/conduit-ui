@@ -110,29 +110,6 @@
   padding: var(--conduit-space-2) var(--conduit-space-3);
 }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--conduit-space-1);
-  flex: none;
-  min-width: 9.5rem;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--pill-color);
-  background: color-mix(in srgb, var(--pill-color) 12%, transparent);
-}
-
-.pillGlyph {
-  font-size: 0.7rem;
-  line-height: 1;
-}
-
-.pillLabel {
-  white-space: nowrap;
-}
-
 .rowName {
   font-weight: 600;
   color: var(--conduit-color-text);
