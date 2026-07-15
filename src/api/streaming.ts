@@ -12,6 +12,27 @@ export interface InspectFrame<TRecord = unknown> {
   result: TRecord;
 }
 
+/**
+ * grpc-gateway emits a trailing/interleaved `{ "error": {...} }` line when a
+ * streaming RPC fails. We surface it rather than treating `.result` (undefined) as
+ * a record.
+ */
+interface InspectErrorFrame {
+  error: unknown;
+}
+
+/** Handlers for stream lifecycle beyond record delivery. All optional. */
+export interface InspectStreamHandlers {
+  /** A transport error, an in-band `{error}` frame, or a malformed line. */
+  onError?: (err: Event) => void;
+  /** The socket closed (server going-away, idle timeout, network). */
+  onClose?: (ev: CloseEvent) => void;
+}
+
+function isErrorFrame(v: unknown): v is InspectErrorFrame {
+  return typeof v === 'object' && v !== null && 'error' in v;
+}
+
 export type InspectKind = 'connector' | 'processor-in' | 'processor-out';
 
 /** Builds the ws(s):// URL for an Inspect stream from an http(s) base. */
@@ -29,20 +50,38 @@ export function inspectURL(baseUrl: string, kind: InspectKind, id: string): stri
 }
 
 /**
- * Opens an Inspect stream and invokes onRecord for each record frame. Returns a
- * close function. This is a thin boundary; reconnect/backpressure/sampling UX is
- * UI-4's job (see the design doc's live-record-flow section).
+ * Opens an Inspect stream and invokes onRecord for each `{result}` record frame.
+ * Returns a close function. This is a thin boundary; reconnect/backpressure/
+ * sampling UX is UI-4's job (see the design doc's live-record-flow section).
+ *
+ * Robustness contract (relied on by UI-4's reconnect logic):
+ *   - A malformed/partial line or a grpc-gateway `{error}` frame is routed to
+ *     `onError` and never throws out of the message handler (a thrown parse would
+ *     otherwise silently kill record delivery).
+ *   - `onClose` fires on socket close so the consumer can reconnect.
  */
 export function openInspectStream<TRecord = unknown>(
   url: string,
   onRecord: (record: TRecord) => void,
-  onError?: (err: Event) => void
+  handlers: InspectStreamHandlers = {}
 ): () => void {
   const ws = new WebSocket(url);
   ws.addEventListener('message', (ev: MessageEvent<string>) => {
-    const frame = JSON.parse(ev.data) as InspectFrame<TRecord>;
-    onRecord(frame.result);
+    let frame: unknown;
+    try {
+      frame = JSON.parse(ev.data);
+    } catch {
+      // Malformed/partial line — surface as a stream error, don't throw.
+      handlers.onError?.(new Event('inspect-parse-error'));
+      return;
+    }
+    if (isErrorFrame(frame)) {
+      handlers.onError?.(new Event('inspect-stream-error'));
+      return;
+    }
+    onRecord((frame as InspectFrame<TRecord>).result);
   });
-  if (onError) ws.addEventListener('error', onError);
+  if (handlers.onError) ws.addEventListener('error', handlers.onError);
+  if (handlers.onClose) ws.addEventListener('close', handlers.onClose);
   return () => ws.close();
 }
