@@ -67,8 +67,9 @@ describe('describePipelineStatus — all 15 status×reason combinations', () => 
   });
 
   it('just-created pipeline (STOPPED + USER, and STOPPED + UNSPECIFIED) is a calm user-stop', () => {
-    expect(describePipelineStatus({ status: 'STATUS_STOPPED', stoppedReason: 'STOPPED_REASON_USER' }))
-      .toMatchObject({ severity: 'user-stopped', needsAttention: false });
+    expect(
+      describePipelineStatus({ status: 'STATUS_STOPPED', stoppedReason: 'STOPPED_REASON_USER' })
+    ).toMatchObject({ severity: 'user-stopped', needsAttention: false });
     expect(describePipelineStatus({ status: 'STATUS_STOPPED' })).toMatchObject({
       severity: 'user-stopped',
       needsAttention: false,
@@ -80,7 +81,11 @@ describe('describePipelineStatus — all 15 status×reason combinations', () => 
       status: 'STATUS_STOPPED',
       stoppedReason: 'STOPPED_REASON_SYSTEM',
     });
-    expect(got).toMatchObject({ severity: 'system-stopped', tone: 'stopped', needsAttention: true });
+    expect(got).toMatchObject({
+      severity: 'system-stopped',
+      tone: 'stopped',
+      needsAttention: true,
+    });
   });
 
   it('undefined / empty state falls back to unknown, not running', () => {

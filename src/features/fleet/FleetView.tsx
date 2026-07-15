@@ -35,13 +35,7 @@ export interface FleetContentProps {
 // count header + the needs-attention section above the fold) and gets to a
 // degraded pipeline's cause in <=2 (expand the row). Read-only: it observes and
 // links out; it never authors pipelines.
-export function FleetContent({
-  pipelines,
-  isPending,
-  isError,
-  error,
-  baseUrl,
-}: FleetContentProps) {
+export function FleetContent({ pipelines, isPending, isError, error, baseUrl }: FleetContentProps) {
   const hasData = pipelines !== undefined;
 
   // First load, nothing to show yet.
@@ -164,7 +158,11 @@ function FleetSection({
   expandable?: boolean;
 }) {
   return (
-    <section className={styles.fleetSection} data-tone={tone} aria-label={`${title} (${entries.length})`}>
+    <section
+      className={styles.fleetSection}
+      data-tone={tone}
+      aria-label={`${title} (${entries.length})`}
+    >
       <h3 className={styles.sectionTitle}>
         {title} <span className={styles.sectionCount}>{entries.length}</span>
       </h3>
