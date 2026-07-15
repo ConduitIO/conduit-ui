@@ -377,6 +377,7 @@ export interface components {
             status?: components["schemas"]["v1PipelineStatus"];
             /** @description Error message when pipeline status is STATUS_DEGRADED. */
             error?: string;
+            stoppedReason?: components["schemas"]["StateStoppedReason"];
         };
         /** @description Deprecated: use config.v1.Validation instead. */
         PluginSpecificationsParameterValidation: {
@@ -417,6 +418,21 @@ export interface components {
             config?: components["schemas"]["v1ProcessorConfig"];
             plugin?: string;
         };
+        /**
+         * @description StoppedReason distinguishes how a STATUS_STOPPED pipeline came to be
+         *     stopped. It is only meaningful when status == STATUS_STOPPED;
+         *     STOPPED_REASON_UNSPECIFIED otherwise (and for older servers that don't set
+         *     it). Additive: existing clients that read only `status`/`error` are
+         *     unaffected.
+         *
+         *      - STOPPED_REASON_USER: An operator or API call stopped the pipeline (also the initial state of
+         *     a created-but-never-started pipeline).
+         *      - STOPPED_REASON_SYSTEM: Conduit stopped the pipeline itself — a graceful engine shutdown, or a
+         *     pipeline that was running before a restart and has not been resumed.
+         * @default STOPPED_REASON_UNSPECIFIED
+         * @enum {string}
+         */
+        StateStoppedReason: "STOPPED_REASON_UNSPECIFIED" | "STOPPED_REASON_USER" | "STOPPED_REASON_SYSTEM";
         apiv1Connector: {
             readonly id?: string;
             destinationState?: components["schemas"]["ConnectorDestinationState"];
@@ -972,6 +988,7 @@ export type SchemaPluginSpecificationsParameterValidationType = components['sche
 export type SchemaProcessorParent = components['schemas']['ProcessorParent'];
 export type SchemaProcessorParentType = components['schemas']['ProcessorParentType'];
 export type SchemaProcessorServiceUpdateProcessorBody = components['schemas']['ProcessorServiceUpdateProcessorBody'];
+export type SchemaStateStoppedReason = components['schemas']['StateStoppedReason'];
 export type SchemaApiv1Connector = components['schemas']['apiv1Connector'];
 export type SchemaApiv1Info = components['schemas']['apiv1Info'];
 export type SchemaApiv1Processor = components['schemas']['apiv1Processor'];
