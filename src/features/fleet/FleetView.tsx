@@ -8,6 +8,10 @@ import styles from './FleetView.module.css';
 // all rendering logic is testable without query/network machinery.
 export function FleetView() {
   const query = usePipelines();
+  // NOTE: no `baseUrl` is threaded through — the client defaults to same-origin
+  // (the embedded-UI case), so the unreachable-at-load message correctly says
+  // "same origin". When a dev-mode remote-engine override is added, thread that
+  // URL both into createConduitClient AND here, or this message goes stale.
   return (
     <FleetContent
       pipelines={query.data}
@@ -102,6 +106,9 @@ export function FleetContent({
           )}
           {model.calm.length > 0 && (
             <FleetSection title="Stopped" tone="calm" entries={model.calm} />
+          )}
+          {model.unknown.length > 0 && (
+            <FleetSection title="Unknown" tone="calm" entries={model.unknown} />
           )}
         </>
       )}

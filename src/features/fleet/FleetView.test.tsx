@@ -127,6 +127,13 @@ describe('FleetContent — states (AC5)', () => {
     expect(screen.getByText(/no pipelines yet/i)).toBeTruthy();
     expect(screen.getByText(/conduit pipelines init/i)).toBeTruthy();
   });
+
+  it('an unknown-status pipeline renders under "Unknown", not mislabeled as "Stopped"', () => {
+    renderContent({ pipelines: [pipe('u', 'STATUS_UNSPECIFIED', { name: 'mystery' })] });
+    const unknown = screen.getByRole('region', { name: /^Unknown/i });
+    expect(within(unknown).getByRole('link', { name: 'mystery' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: /^Stopped/i })).toBeNull();
+  });
 });
 
 describe('FleetContent — resilience (AC10)', () => {

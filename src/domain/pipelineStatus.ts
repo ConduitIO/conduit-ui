@@ -95,9 +95,17 @@ function describeStopped(
   return { severity: 'user-stopped', label: 'Stopped', tone: 'stopped', needsAttention: false };
 }
 
-/** First line of a (possibly multi-line) error string, for the collapsed row. */
+/**
+ * First non-blank line of a (possibly multi-line) error string, for the collapsed
+ * row summary. Skips leading blank/whitespace lines so a message that starts with
+ * a newline still gets a meaningful preview (the full text is always available via
+ * the row's expand control).
+ */
 export function errorFirstLine(error: string | undefined): string | undefined {
   if (!error) return undefined;
-  const firstLine = error.split('\n', 1)[0]?.trim();
-  return firstLine && firstLine.length > 0 ? firstLine : undefined;
+  for (const line of error.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return undefined;
 }

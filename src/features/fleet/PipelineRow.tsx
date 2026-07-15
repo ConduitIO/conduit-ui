@@ -59,7 +59,9 @@ export function PipelineRow({ entry, expandable = false }: PipelineRowProps) {
             type="button"
             className={styles.expandButton}
             aria-expanded={open}
-            aria-controls={errorId}
+            // Only reference the panel while it exists in the DOM (it renders
+            // conditionally below), so aria-controls never dangles to a missing id.
+            {...(open ? { 'aria-controls': errorId } : {})}
             onClick={() => setOpen((v) => !v)}
           >
             {open ? 'Hide details' : 'Show details'}

@@ -29,8 +29,11 @@ export interface FleetModel {
   // Sorted, most-urgent first. `needsAttention` is degraded/recovering/system-stopped.
   needsAttention: FleetEntry[];
   running: FleetEntry[];
-  // Calm stopped + any unknown, de-emphasized.
+  // Calm user-stopped pipelines, de-emphasized.
   calm: FleetEntry[];
+  // Defensive-only: pipelines with an unrecognized/unspecified status. Kept
+  // separate so they're never mislabeled under the "Stopped" heading.
+  unknown: FleetEntry[];
   counts: FleetCounts;
 }
 
@@ -64,6 +67,7 @@ export function buildFleetModel(pipelines: readonly SchemaV1Pipeline[]): FleetMo
   const needsAttention: FleetEntry[] = [];
   const running: FleetEntry[] = [];
   const calm: FleetEntry[] = [];
+  const unknown: FleetEntry[] = [];
   const counts: FleetCounts = {
     running: 0,
     degraded: 0,
@@ -98,7 +102,7 @@ export function buildFleetModel(pipelines: readonly SchemaV1Pipeline[]): FleetMo
       case 'unknown':
       default:
         counts.unknown += 1;
-        calm.push(e);
+        unknown.push(e);
         break;
     }
   }
@@ -106,6 +110,7 @@ export function buildFleetModel(pipelines: readonly SchemaV1Pipeline[]): FleetMo
   needsAttention.sort(bySeverityThenName);
   running.sort(bySeverityThenName);
   calm.sort(bySeverityThenName);
+  unknown.sort(bySeverityThenName);
 
-  return { needsAttention, running, calm, counts };
+  return { needsAttention, running, calm, unknown, counts };
 }

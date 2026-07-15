@@ -1,4 +1,4 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useQuery, type QueryFunctionContext, type UseQueryResult } from '@tanstack/react-query';
 import { createConduitClient, type ConduitClient } from './client';
 import type { SchemaV1Pipeline } from './schema';
 
@@ -27,25 +27,32 @@ export async function fetchPipelines(
   return data ?? [];
 }
 
-// usePipelines fetches GET /v1/pipelines (ListPipelines) and polls it. The client
-// is injectable so tests can drive it without touching the network.
+// The query options for the pipeline list, extracted so the resilience contract
+// below is testable against the real options (queryFn, queryKey, no onError)
+// rather than only through the presentational layer.
 //
-// Resilience contract (relied on by the fleet view, tested there):
-//   - On a failed background refetch after a prior success, TanStack retains the
-//     last-good `data` and surfaces `error` alongside it. We add NO onError that
-//     clears data and never vary the queryKey on retry, so the list is never
-//     wiped to empty (which would read as "no pipelines" — a false negative).
+// Resilience contract (relied on by the fleet view):
+//   - On a failed refetch after a prior success, TanStack retains the last-good
+//     `data` and surfaces `error` alongside it. We add NO onError that clears
+//     data and never vary the queryKey on retry, so the list is never wiped to
+//     empty (which would read as "no pipelines" — a false negative).
 //   - Failures back off exponentially instead of hammering a down engine every 3s.
-export function usePipelines(client: ConduitClient = defaultClient): UsePipelinesResult {
-  return useQuery<SchemaV1Pipeline[], Error>({
-    queryKey: ['pipelines'],
-    queryFn: ({ signal }) => fetchPipelines(client, signal),
+export function pipelinesQueryOptions(client: ConduitClient = defaultClient) {
+  return {
+    queryKey: ['pipelines'] as const,
+    queryFn: ({ signal }: QueryFunctionContext) => fetchPipelines(client, signal),
     refetchInterval: POLL_INTERVAL_MS,
     // Don't poll a hidden tab; refetch once on focus/reconnect instead.
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30_000),
-  });
+    retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 30_000),
+  };
+}
+
+// usePipelines fetches GET /v1/pipelines (ListPipelines) and polls it. The client
+// is injectable so tests can drive it without touching the network.
+export function usePipelines(client: ConduitClient = defaultClient): UsePipelinesResult {
+  return useQuery<SchemaV1Pipeline[], Error>(pipelinesQueryOptions(client));
 }
