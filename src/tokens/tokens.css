@@ -16,11 +16,13 @@
   --conduit-color-text-muted: #5b6470;
   --conduit-color-border: #e2e5ea;
   --conduit-color-accent: #2f6fed;
-  /* Status colors map to the 4 wire-visible pipeline states. */
+  /* Status colors map to the wire-visible pipeline states. `unknown` is the
+     defensive fallback for STATUS_UNSPECIFIED (pre-P3 server / malformed state). */
   --conduit-color-status-running: #1f9d55;
   --conduit-color-status-stopped: #5b6470;
   --conduit-color-status-degraded: #d64545;
   --conduit-color-status-recovering: #d99e00;
+  --conduit-color-status-unknown: #8a93a0;
 
   /* Spacing */
   --conduit-space-1: 0.25rem;

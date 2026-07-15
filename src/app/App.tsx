@@ -1,23 +1,13 @@
 import { Routes, Route, Link } from 'react-router-dom';
 import styles from './App.module.css';
+import { FleetView } from '../features/fleet/FleetView';
 
 // Scaffold app shell. The route split (fleet vs. pipeline detail) is the URL
 // contract UI-2/UI-3 build into (design doc Decision 2: "separate views, not one
-// component"). Routes are stubs in UI-1 — real views land in later slices.
+// component"). The fleet view (UI-2) is live at `/`; pipeline detail is still a
+// stub until UI-3.
 // Note for UI-7 (embed): client-side routing requires the Go server to serve
 // index.html as the fallback for unknown non-API paths under `/`.
-function FleetPlaceholder() {
-  return (
-    <section aria-labelledby="fleet-heading">
-      <h2 id="fleet-heading">Pipelines</h2>
-      <p className={styles.muted}>
-        The fleet view lands in a later slice. Pipelines are created with the CLI, config files, or
-        MCP — this UI observes and operates them, it does not author them.
-      </p>
-    </section>
-  );
-}
-
 function PipelineDetailPlaceholder() {
   return (
     <section aria-labelledby="detail-heading">
@@ -39,7 +29,7 @@ export function App() {
       </header>
       <main className={styles.main}>
         <Routes>
-          <Route path="/" element={<FleetPlaceholder />} />
+          <Route path="/" element={<FleetView />} />
           <Route path="/pipelines/:id" element={<PipelineDetailPlaceholder />} />
         </Routes>
       </main>
