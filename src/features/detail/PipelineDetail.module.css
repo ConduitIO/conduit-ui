@@ -1,0 +1,236 @@
+.muted {
+  color: var(--conduit-color-text-muted);
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: var(--conduit-space-3);
+  color: var(--conduit-color-accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.backLink:hover,
+.backLink:focus-visible {
+  text-decoration: underline;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--conduit-space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--conduit-space-4);
+}
+
+.title {
+  margin: 0;
+}
+
+/* --- loading / error / stale (mirrors the fleet treatment) --- */
+.skeleton {
+  padding: var(--conduit-space-6);
+  color: var(--conduit-color-text-muted);
+  background: var(--conduit-color-surface);
+  border-radius: 8px;
+}
+
+.connectionError {
+  padding: var(--conduit-space-4);
+  border: 1px solid var(--conduit-color-status-degraded);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--conduit-color-status-degraded) 8%, transparent);
+}
+
+.staleBanner {
+  margin-bottom: var(--conduit-space-4);
+  padding: var(--conduit-space-2) var(--conduit-space-3);
+  border: 1px solid var(--conduit-color-status-recovering);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--conduit-color-status-recovering) 12%, transparent);
+  font-size: 0.875rem;
+}
+
+.topologyUnavailable {
+  padding: var(--conduit-space-3);
+  color: var(--conduit-color-text-muted);
+  background: var(--conduit-color-surface);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+/* --- metadata --- */
+.meta {
+  margin: 0 0 var(--conduit-space-6);
+}
+
+.metaRow {
+  display: flex;
+  gap: var(--conduit-space-3);
+  padding: var(--conduit-space-1) 0;
+}
+
+.metaTerm {
+  flex: none;
+  width: 7rem;
+  margin: 0;
+  color: var(--conduit-color-text-muted);
+  font-size: 0.9rem;
+}
+
+.metaValue {
+  margin: 0;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.metaValueMono {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--conduit-font-mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+  word-break: break-word;
+}
+
+/* --- topology graph --- */
+.graph {
+  border: 1px solid var(--conduit-color-border);
+  border-radius: 8px;
+  padding: var(--conduit-space-4);
+}
+
+.columns {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--conduit-space-3);
+  overflow-x: auto;
+}
+
+.column {
+  flex: 1 1 0;
+  min-width: 12rem;
+}
+
+.columnTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--conduit-space-2);
+  margin: 0 0 var(--conduit-space-2);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--conduit-color-text-muted);
+}
+
+.columnCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.columnEmpty {
+  margin: 0;
+  color: var(--conduit-color-text-muted);
+  font-size: 0.85rem;
+}
+
+.arrow {
+  align-self: center;
+  color: var(--conduit-color-text-muted);
+  font-size: 1.25rem;
+  flex: none;
+}
+
+.nodeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--conduit-space-2);
+  /* Large fans stay usable without hiding any node from assistive tech. */
+  max-height: 28rem;
+  overflow-y: auto;
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--conduit-space-2) var(--conduit-space-3);
+  border: 1px solid var(--conduit-color-border);
+  border-radius: 6px;
+  background: var(--conduit-color-bg, #fff);
+}
+
+.node[data-unavailable='true'] {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.nodeLabel {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.nodePlugin {
+  font-family: var(--conduit-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--conduit-color-text-muted);
+  word-break: break-word;
+}
+
+.nodeTag {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--conduit-color-text-muted);
+}
+
+.subProcessors {
+  list-style: none;
+  margin: var(--conduit-space-1) 0 0;
+  padding: 0 0 0 var(--conduit-space-3);
+  border-left: 2px solid var(--conduit-color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.subProcessor {
+  display: flex;
+  align-items: baseline;
+  gap: var(--conduit-space-2);
+  font-size: 0.85rem;
+}
+
+.subProcessor[data-unavailable='true'] {
+  opacity: 0.7;
+}
+
+.auxSection {
+  margin-top: var(--conduit-space-4);
+  padding-top: var(--conduit-space-3);
+  border-top: 1px solid var(--conduit-color-border);
+}
+
+.emptyGraph {
+  padding: var(--conduit-space-6);
+  text-align: center;
+  color: var(--conduit-color-text-muted);
+  background: var(--conduit-color-surface);
+  border-radius: 8px;
+}
+
+/* Visually hidden but available to assistive tech. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

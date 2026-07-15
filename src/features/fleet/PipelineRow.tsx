@@ -1,33 +1,8 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { StatusPill } from '../../components/StatusPill';
 import type { FleetEntry } from './fleet';
 import styles from './FleetView.module.css';
-
-// Non-color-only status indicator: a shape glyph + text label, tinted by the
-// status token. Screen readers and colorblind users get the label; color is
-// redundant reinforcement, never the sole signal (AC7).
-const TONE_GLYPH: Record<string, string> = {
-  running: '●',
-  degraded: '▲',
-  recovering: '◐',
-  stopped: '■',
-  unknown: '?',
-};
-
-function StatusPill({ tone, label }: { tone: string; label: string }) {
-  return (
-    <span
-      className={styles.pill}
-      data-tone={tone}
-      style={{ ['--pill-color' as string]: `var(--conduit-color-status-${tone})` }}
-    >
-      <span className={styles.pillGlyph} aria-hidden="true">
-        {TONE_GLYPH[tone] ?? '■'}
-      </span>
-      <span className={styles.pillLabel}>{label}</span>
-    </span>
-  );
-}
 
 interface PipelineRowProps {
   entry: FleetEntry;
