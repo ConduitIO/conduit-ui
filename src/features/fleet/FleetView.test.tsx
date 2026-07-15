@@ -3,7 +3,11 @@ import { render, screen, within, waitFor, cleanup, fireEvent } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import axe from 'axe-core';
-import type { SchemaV1Pipeline, SchemaV1PipelineStatus, SchemaStateStoppedReason } from '../../api/schema';
+import type {
+  SchemaV1Pipeline,
+  SchemaV1PipelineStatus,
+  SchemaStateStoppedReason,
+} from '../../api/schema';
 import { FleetContent, FleetView } from './FleetView';
 import '../../tokens/tokens.css';
 
@@ -47,14 +51,19 @@ describe('FleetContent — health-first layout', () => {
     pipe('run1', 'STATUS_RUNNING', { name: 'zeta-running' }),
     pipe('userstop', 'STATUS_STOPPED', { name: 'alpha-userstop', reason: 'STOPPED_REASON_USER' }),
     pipe('sys', 'STATUS_STOPPED', { name: 'mid-sysstop', reason: 'STOPPED_REASON_SYSTEM' }),
-    pipe('deg', 'STATUS_DEGRADED', { name: 'beta-degraded', error: 'boom: connection refused\n  at write()' }),
+    pipe('deg', 'STATUS_DEGRADED', {
+      name: 'beta-degraded',
+      error: 'boom: connection refused\n  at write()',
+    }),
     pipe('rec', 'STATUS_RECOVERING', { name: 'gamma-recovering' }),
   ];
 
   it('AC1: needs-attention pipelines render above the fold, sorted by severity (degraded>recovering>system-stopped)', () => {
     renderContent({ pipelines: mixed });
     const attention = screen.getByRole('region', { name: /Needs attention/i });
-    const links = within(attention).getAllByRole('link').map((a) => a.textContent);
+    const links = within(attention)
+      .getAllByRole('link')
+      .map((a) => a.textContent);
     expect(links).toEqual(['beta-degraded', 'gamma-recovering', 'mid-sysstop']);
   });
 
@@ -116,7 +125,11 @@ describe('FleetContent — states (AC5)', () => {
   });
 
   it('engine unreachable at load names the target and does not hang on a skeleton', () => {
-    renderContent({ isError: true, error: new Error('network down'), baseUrl: 'http://localhost:8080' });
+    renderContent({
+      isError: true,
+      error: new Error('network down'),
+      baseUrl: 'http://localhost:8080',
+    });
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('http://localhost:8080');
     expect(screen.queryByText(/loading pipelines/i)).toBeNull();
@@ -168,13 +181,17 @@ describe('FleetContent — reconciliation (AC9)', () => {
 
   it('a stopped_reason transition (system -> user) re-buckets the pipeline', () => {
     const { rerender } = renderContent({
-      pipelines: [pipe('p', 'STATUS_STOPPED', { name: 'resumed', reason: 'STOPPED_REASON_SYSTEM' })],
+      pipelines: [
+        pipe('p', 'STATUS_STOPPED', { name: 'resumed', reason: 'STOPPED_REASON_SYSTEM' }),
+      ],
     });
     expect(screen.getByRole('region', { name: /Needs attention/i })).toBeTruthy();
     rerender(
       <MemoryRouter>
         <FleetContent
-          pipelines={[pipe('p', 'STATUS_STOPPED', { name: 'resumed', reason: 'STOPPED_REASON_USER' })]}
+          pipelines={[
+            pipe('p', 'STATUS_STOPPED', { name: 'resumed', reason: 'STOPPED_REASON_USER' }),
+          ]}
           isPending={false}
           isError={false}
           error={null}
@@ -225,7 +242,10 @@ describe('FleetView container — wire to render', () => {
     // on fetch-capture timing; the fetch/parse path is covered by fetchPipelines'
     // own test below.
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(['pipelines'], [pipe('x', 'STATUS_RUNNING', { name: 'wired-pipeline' })]);
+    queryClient.setQueryData(
+      ['pipelines'],
+      [pipe('x', 'STATUS_RUNNING', { name: 'wired-pipeline' })]
+    );
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>

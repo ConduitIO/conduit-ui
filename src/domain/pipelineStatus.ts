@@ -1,4 +1,8 @@
-import type { SchemaPipelineState, SchemaV1PipelineStatus, SchemaStateStoppedReason } from '../api/schema';
+import type {
+  SchemaPipelineState,
+  SchemaV1PipelineStatus,
+  SchemaStateStoppedReason,
+} from '../api/schema';
 
 // Single source of truth for turning a wire `Pipeline.State` into how the fleet
 // view presents it: a severity (drives sort + which section a pipeline lands in),
@@ -20,12 +24,7 @@ import type { SchemaPipelineState, SchemaV1PipelineStatus, SchemaStateStoppedRea
 //     one "stopped" case that needs attention — this is exactly why P3 exists.
 
 export type Severity =
-  | 'degraded'
-  | 'recovering'
-  | 'system-stopped'
-  | 'running'
-  | 'user-stopped'
-  | 'unknown';
+  'degraded' | 'recovering' | 'system-stopped' | 'running' | 'user-stopped' | 'unknown';
 
 // Lower rank = more urgent = sorts first / renders above the fold.
 export const SEVERITY_RANK: Record<Severity, number> = {
@@ -78,9 +77,7 @@ export function describePipelineStatus(
   }
 }
 
-function describeStopped(
-  reason: SchemaStateStoppedReason | undefined
-): PipelineDisplayStatus {
+function describeStopped(reason: SchemaStateStoppedReason | undefined): PipelineDisplayStatus {
   // Only reached when status == STATUS_STOPPED, so reason is meaningful here.
   if (reason === 'STOPPED_REASON_SYSTEM') {
     return {
