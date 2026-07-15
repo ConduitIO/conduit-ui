@@ -1,0 +1,192 @@
+.muted {
+  color: var(--conduit-color-text-muted);
+}
+
+/* --- loading / connection / stale --- */
+.skeleton {
+  padding: var(--conduit-space-6);
+  color: var(--conduit-color-text-muted);
+  background: var(--conduit-color-surface);
+  border-radius: 8px;
+}
+
+.connectionError {
+  padding: var(--conduit-space-4);
+  border: 1px solid var(--conduit-color-status-degraded);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--conduit-color-status-degraded) 8%, transparent);
+}
+
+.staleBanner {
+  margin-bottom: var(--conduit-space-4);
+  padding: var(--conduit-space-2) var(--conduit-space-3);
+  border: 1px solid var(--conduit-color-status-recovering);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--conduit-color-status-recovering) 12%, transparent);
+  font-size: 0.875rem;
+}
+
+/* --- count header --- */
+.countHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--conduit-space-4);
+  margin-bottom: var(--conduit-space-6);
+  padding: var(--conduit-space-3) var(--conduit-space-4);
+  background: var(--conduit-color-surface);
+  border-radius: 8px;
+}
+
+.count {
+  color: var(--conduit-color-text-muted);
+  font-size: 0.9rem;
+}
+
+.count[data-emphasize='true'] {
+  color: var(--conduit-color-status-degraded);
+  font-weight: 600;
+}
+
+.countValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--conduit-color-text);
+}
+
+.count[data-emphasize='true'] .countValue {
+  color: inherit;
+}
+
+/* --- sections --- */
+.fleetSection {
+  margin-bottom: var(--conduit-space-6);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--conduit-space-2);
+  margin: 0 0 var(--conduit-space-2);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--conduit-color-text-muted);
+}
+
+.fleetSection[data-tone='attention'] .sectionTitle {
+  color: var(--conduit-color-status-degraded);
+}
+
+.sectionCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.rowList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--conduit-space-1);
+}
+
+/* Calm sections read lighter so problems draw the eye first. */
+.fleetSection[data-tone='calm'] .rowList {
+  opacity: 0.85;
+}
+
+/* --- row --- */
+.row {
+  border: 1px solid var(--conduit-color-border);
+  border-radius: 6px;
+  background: var(--conduit-color-bg, #fff);
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: var(--conduit-space-3);
+  padding: var(--conduit-space-2) var(--conduit-space-3);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--conduit-space-1);
+  flex: none;
+  min-width: 9.5rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--pill-color);
+  background: color-mix(in srgb, var(--pill-color) 12%, transparent);
+}
+
+.pillGlyph {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.pillLabel {
+  white-space: nowrap;
+}
+
+.rowName {
+  font-weight: 600;
+  color: var(--conduit-color-text);
+  text-decoration: none;
+  flex: none;
+}
+
+.rowName:hover,
+.rowName:focus-visible {
+  text-decoration: underline;
+}
+
+.errorLine {
+  color: var(--conduit-color-text-muted);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.expandButton {
+  flex: none;
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  color: var(--conduit-color-accent);
+  background: none;
+  border: 1px solid var(--conduit-color-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.expandButton:hover {
+  border-color: var(--conduit-color-accent);
+}
+
+.errorFull {
+  margin: 0;
+  padding: var(--conduit-space-3);
+  border-top: 1px solid var(--conduit-color-border);
+  background: var(--conduit-color-surface);
+  font-family: var(--conduit-font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* --- empty --- */
+.emptyState {
+  padding: var(--conduit-space-8) var(--conduit-space-4);
+  text-align: center;
+  background: var(--conduit-color-surface);
+  border-radius: 8px;
+}
