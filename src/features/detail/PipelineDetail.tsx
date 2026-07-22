@@ -6,11 +6,14 @@ import {
   PipelineNotFoundError,
   type Topology,
 } from '../../api/pipelineDetail';
+import { usePipelineMetrics, type PipelineMetricsSnapshot } from '../../api/pipelineMetrics';
 import { describePipelineStatus } from '../../domain/pipelineStatus';
 import { StatusPill } from '../../components/StatusPill';
 import { buildTopologyModel } from './topology';
 import { TopologyGraph } from './TopologyGraph';
 import { RecordFlow } from './recordFlow/RecordFlow';
+import { attributeToNodes, summarizePipelineActivity } from './nodeMetrics';
+import { PipelineActivityBadge } from './PipelineActivityBadge';
 import styles from './PipelineDetail.module.css';
 
 // Minimal read-only view of the query state each section needs; typed as a subset
@@ -29,21 +32,37 @@ export function PipelineDetail() {
   const { id = '' } = useParams();
   const detail = usePipelineDetail(id);
   const topology = usePipelineTopology(id);
-  return <PipelineDetailContent id={id} detail={detail} topology={topology} />;
+  // pipeline_name is the wire's metrics label (display name, not the pipeline
+  // ID — see pipelineMetrics.ts); before `detail` resolves this is '', which
+  // simply matches no samples until the name is known. Hooks can't be called
+  // conditionally, so this always runs.
+  const pipelineName = detail.data?.config?.name?.trim() || detail.data?.id || '';
+  const metrics = usePipelineMetrics(pipelineName);
+  return <PipelineDetailContent id={id} detail={detail} topology={topology} metrics={metrics} />;
 }
 
 export interface PipelineDetailContentProps {
   id: string;
   detail: QueryLike<SchemaV1Pipeline>;
   topology: QueryLike<Topology>;
+  /** UI-5: optional so existing callers/tests that predate metrics keep working unchanged — omitted is treated as "no metrics yet", never as an error. */
+  metrics?: QueryLike<PipelineMetricsSnapshot> | undefined;
   /** Engine base URL for the unreachable message. Empty = same-origin. */
   baseUrl?: string | undefined;
 }
+
+const NO_METRICS: QueryLike<PipelineMetricsSnapshot> = {
+  data: undefined,
+  isPending: false,
+  isError: false,
+  error: null,
+};
 
 export function PipelineDetailContent({
   id,
   detail,
   topology,
+  metrics = NO_METRICS,
   baseUrl,
 }: PipelineDetailContentProps) {
   // A 404 is a distinct, terminal state (not "unreachable"); check it first.
@@ -111,7 +130,13 @@ export function PipelineDetailContent({
         )}
       </dl>
 
-      <TopologySection pipeline={pipeline} topology={topology} pipelineName={name} />
+      <TopologySection
+        pipeline={pipeline}
+        topology={topology}
+        metrics={metrics}
+        pipelineName={name}
+        running={display.tone === 'running'}
+      />
     </article>
   );
 }
@@ -119,11 +144,16 @@ export function PipelineDetailContent({
 function TopologySection({
   pipeline,
   topology,
+  metrics,
   pipelineName,
+  running,
 }: {
   pipeline: SchemaV1Pipeline;
   topology: QueryLike<Topology>;
+  metrics: QueryLike<PipelineMetricsSnapshot>;
   pipelineName: string;
+  /** Only while Running does an "idle"/"flowing" reading mean anything (AC5) — see PipelineActivityBadge and nodeMetrics.ts. */
+  running: boolean;
 }) {
   // No topology yet: a failure shows a non-blocking note (identity/status above
   // still render — never a blank view); otherwise a loading skeleton. Both narrow
@@ -152,6 +182,13 @@ function TopologySection({
   const isTrulyEmpty =
     model.isEmpty && model.pipelineProcessors.length === 0 && model.orphanProcessors.length === 0;
 
+  // UI-5: node/pipeline activity is only meaningful while Running (AC5) — when
+  // not, skip computing it and simply render the identity-only graph, same as
+  // before this slice. A metrics-fetch failure never blanks the graph: `metrics`
+  // failing degrades to no badges, mirroring `processorsUnavailable` below.
+  const nodeMetrics = running ? attributeToNodes(model, metrics.data) : undefined;
+  const activitySummary = summarizePipelineActivity(model.destinations.length, metrics.data);
+
   return (
     <>
       {topology.isError && (
@@ -164,6 +201,17 @@ function TopologySection({
           Processor details are temporarily unavailable; showing connectors only.
         </p>
       )}
+      {metrics.data === undefined && metrics.isError && (
+        <p className={styles.topologyUnavailable} role="status">
+          Metrics unavailable{metrics.error?.message ? ` (${metrics.error.message})` : ''} — showing
+          topology only.
+        </p>
+      )}
+      {metrics.data !== undefined && metrics.isError && (
+        <div className={styles.staleBanner} role="status">
+          Metrics may be stale — couldn’t refresh.
+        </div>
+      )}
       {isTrulyEmpty ? (
         <p className={styles.emptyGraph}>
           No connectors configured. Add them via <code>conduit pipelines</code> or a config file —
@@ -171,7 +219,13 @@ function TopologySection({
         </p>
       ) : (
         <>
-          <TopologyGraph model={model} pipelineName={pipelineName} />
+          <PipelineActivityBadge summary={activitySummary} running={running} />
+          <TopologyGraph
+            model={model}
+            pipelineName={pipelineName}
+            nodeMetrics={nodeMetrics}
+            activitySummary={activitySummary}
+          />
           {/* UI-4: live record flow + per-stage diff, keyed off the same
               topology model so stage ordering can never drift from the graph
               above it (see recordFlow/stages.ts). */}

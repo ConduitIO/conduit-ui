@@ -1,4 +1,11 @@
 import type { TopologyModel, TopologyConnectorNode, TopologyProcessorNode } from './topology';
+import {
+  formatBytesPerSec,
+  formatRecordsPerSec,
+  SLOW_LATENCY_THRESHOLD_SECONDS,
+  type NodeMetricView,
+  type PipelineActivitySummary,
+} from './nodeMetrics';
 import styles from './PipelineDetail.module.css';
 
 // A read-only source(s) → processors → destination(s) view. Conduit pipelines are
@@ -6,8 +13,44 @@ import styles from './PipelineDetail.module.css';
 // three ordered lists in columns — rather than a graph library. That keeps the
 // screen-reader equivalent free (the lists ARE the structure) and adds no dependency.
 //
-// The wire exposes no per-node status or throughput (only the pipeline has a
-// status), so nodes are identity-only here; per-node health is deferred to UI-5.
+// The wire exposes no per-node status (only the pipeline has one), so connector
+// nodes stay identity-only for that. UI-5 adds an optional `nodeMetrics` prop:
+// per-connector throughput (records/sec, bytes/sec), a "slow" badge from p95
+// write/read latency, and an honest "idle" label — never a "stalled" state, since
+// nothing on the wire distinguishes genuine idle from a hung read/write (see the
+// UI-5 plan's scope decision). A node absent from `nodeMetrics` (not Running, no
+// metrics yet, or an `other`/unspecified-type connector) simply renders no badge.
+
+function NodeMetricBadge({ metrics }: { metrics: NodeMetricView }) {
+  // Nothing to say yet (still warming up / metrics unreachable) and not a
+  // combined-attribution case either — render nothing rather than a placeholder.
+  if (metrics.activity === 'unknown' && !metrics.ambiguous) return null;
+
+  return (
+    <span className={styles.nodeMetric} data-activity={metrics.activity} data-slow={metrics.slow}>
+      {metrics.activity === 'flowing' && metrics.recordsPerSec !== undefined && (
+        <span className={styles.nodeMetricRate}>
+          {formatRecordsPerSec(metrics.recordsPerSec)}
+          {metrics.bytesPerSec !== undefined && ` · ${formatBytesPerSec(metrics.bytesPerSec)}`}
+        </span>
+      )}
+      {metrics.activity === 'idle' && (
+        <span className={styles.nodeMetricTag}>idle — no recent activity</span>
+      )}
+      {metrics.slow && (
+        <span
+          className={styles.nodeMetricTag}
+          title={`p95 latency above ${SLOW_LATENCY_THRESHOLD_SECONDS}s`}
+        >
+          slow
+        </span>
+      )}
+      {metrics.ambiguous && metrics.combinedAcrossCount !== undefined && (
+        <span className={styles.nodeMetricTag}>combined across {metrics.combinedAcrossCount}</span>
+      )}
+    </span>
+  );
+}
 
 function ProcessorItems({ processors }: { processors: TopologyProcessorNode[] }) {
   return (
@@ -23,18 +66,33 @@ function ProcessorItems({ processors }: { processors: TopologyProcessorNode[] })
   );
 }
 
-function ConnectorNode({ node }: { node: TopologyConnectorNode }) {
+function ConnectorNode({
+  node,
+  metrics,
+}: {
+  node: TopologyConnectorNode;
+  metrics?: NodeMetricView | undefined;
+}) {
   return (
     <li className={styles.node} data-unavailable={node.unavailable}>
       <span className={styles.nodeLabel}>{node.label}</span>
       {node.plugin && <span className={styles.nodePlugin}>{node.plugin}</span>}
       {node.unavailable && <span className={styles.nodeTag}>unavailable</span>}
+      {metrics && <NodeMetricBadge metrics={metrics} />}
       {node.processors.length > 0 && <ProcessorItems processors={node.processors} />}
     </li>
   );
 }
 
-function ConnectorColumn({ title, nodes }: { title: string; nodes: TopologyConnectorNode[] }) {
+function ConnectorColumn({
+  title,
+  nodes,
+  nodeMetrics,
+}: {
+  title: string;
+  nodes: TopologyConnectorNode[];
+  nodeMetrics?: Map<string, NodeMetricView> | undefined;
+}) {
   return (
     <div className={styles.column}>
       <h3 className={styles.columnTitle}>
@@ -47,7 +105,7 @@ function ConnectorColumn({ title, nodes }: { title: string; nodes: TopologyConne
         // any node from assistive tech — every node stays in the DOM.
         <ol className={styles.nodeList}>
           {nodes.map((n) => (
-            <ConnectorNode key={n.id} node={n} />
+            <ConnectorNode key={n.id} node={n} metrics={nodeMetrics?.get(n.id)} />
           ))}
         </ol>
       )}
@@ -58,9 +116,15 @@ function ConnectorColumn({ title, nodes }: { title: string; nodes: TopologyConne
 export function TopologyGraph({
   model,
   pipelineName,
+  nodeMetrics,
+  activitySummary,
 }: {
   model: TopologyModel;
   pipelineName: string;
+  /** UI-5: per-connector-node throughput/latency, keyed by node id. Omit (or pass an empty map) when the pipeline isn't Running, or metrics aren't available yet — nodes simply render without a badge. */
+  nodeMetrics?: Map<string, NodeMetricView> | undefined;
+  /** UI-5: overall pipeline activity, appended to the screen-reader summary below (no per-node aria-live spam — the visual badges above are enough for sighted users). */
+  activitySummary?: PipelineActivitySummary | undefined;
 }) {
   return (
     <section className={styles.graph} aria-label={`${pipelineName} topology`}>
@@ -73,9 +137,15 @@ export function TopologyGraph({
         processor{model.pipelineProcessors.length === 1 ? '' : 's'} → {model.destinations.length}{' '}
         destination{model.destinations.length === 1 ? '' : 's'}.
       </p>
+      {activitySummary && activitySummary.activity !== 'unknown' && (
+        <p className={styles.srOnly}>
+          Pipeline is currently {activitySummary.activity}
+          {activitySummary.slow ? ', with elevated write latency' : ''}.
+        </p>
+      )}
 
       <div className={styles.columns}>
-        <ConnectorColumn title="Sources" nodes={model.sources} />
+        <ConnectorColumn title="Sources" nodes={model.sources} nodeMetrics={nodeMetrics} />
         <span className={styles.arrow} aria-hidden="true">
           →
         </span>
@@ -100,7 +170,11 @@ export function TopologyGraph({
         <span className={styles.arrow} aria-hidden="true">
           →
         </span>
-        <ConnectorColumn title="Destinations" nodes={model.destinations} />
+        <ConnectorColumn
+          title="Destinations"
+          nodes={model.destinations}
+          nodeMetrics={nodeMetrics}
+        />
       </div>
 
       {model.other.length > 0 && (
