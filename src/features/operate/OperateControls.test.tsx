@@ -39,7 +39,7 @@ function renderControls(state: NonNullable<SchemaV1Pipeline['state']>) {
     <QueryClientProvider client={queryClient}>
       <OperateControls
         pipeline={pipeline(state)}
-        query={{ dataUpdatedAt: 0, isError: false, errorUpdatedAt: 0 }}
+        query={{ dataUpdatedAt: 0, isError: false, errorUpdatedAt: 0, isFetching: false }}
       />
     </QueryClientProvider>
   );

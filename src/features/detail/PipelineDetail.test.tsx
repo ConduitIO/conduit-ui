@@ -46,6 +46,7 @@ type Q<T> = {
   error: Error | null;
   dataUpdatedAt: number;
   errorUpdatedAt: number;
+  isFetching: boolean;
 };
 function q<T>(data: T | undefined, over: Partial<Q<T>> = {}): Q<T> {
   return {
@@ -55,6 +56,7 @@ function q<T>(data: T | undefined, over: Partial<Q<T>> = {}): Q<T> {
     error: null,
     dataUpdatedAt: 0,
     errorUpdatedAt: 0,
+    isFetching: false,
     ...over,
   };
 }

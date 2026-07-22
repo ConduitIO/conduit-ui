@@ -27,14 +27,20 @@ interface QueryLike<T> {
   error: Error | null;
   /**
    * Epoch ms of the query's last successful fetch, and last FAILED fetch
-   * attempt. Threaded through to OperateControls (UI-6): the operate
-   * reconciliation gate must compare against the SAME query that supplies
-   * `pipeline` here, not an unrelated one — see usePipelineOperate's doc
-   * comment. Default to 0 in tests that don't care about operate
-   * reconciliation.
+   * attempt. Threaded through to OperateControls (UI-6) as informational
+   * metadata — see usePipelineOperate's doc comment. Default to 0 in tests
+   * that don't care about operate reconciliation.
    */
   dataUpdatedAt: number;
   errorUpdatedAt: number;
+  /**
+   * True while this query's most recent fetch attempt is in flight. This is
+   * what the operate reconciliation gate actually watches — it must compare
+   * against the SAME query that supplies `pipeline` here, not an unrelated
+   * one — see usePipelineOperate's doc comment. Default to false in tests
+   * that don't care about operate reconciliation.
+   */
+  isFetching: boolean;
 }
 
 // Container: reads the :id route param and wires the two polling queries to the
@@ -67,6 +73,9 @@ const NO_METRICS: QueryLike<PipelineMetricsSnapshot> = {
   isPending: false,
   isError: false,
   error: null,
+  dataUpdatedAt: 0,
+  errorUpdatedAt: 0,
+  isFetching: false,
 };
 
 export function PipelineDetailContent({
@@ -127,6 +136,7 @@ export function PipelineDetailContent({
             dataUpdatedAt: detail.dataUpdatedAt,
             isError: detail.isError,
             errorUpdatedAt: detail.errorUpdatedAt,
+            isFetching: detail.isFetching,
           }}
         />
       </header>

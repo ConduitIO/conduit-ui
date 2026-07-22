@@ -34,8 +34,13 @@ function pipeline(state: NonNullable<SchemaV1Pipeline['state']>): SchemaV1Pipeli
   return { id: 'p1', config: { name: 'p1' }, state };
 }
 
-function meta(dataUpdatedAt: number, isError = false, errorUpdatedAt = 0): OperateQueryMeta {
-  return { dataUpdatedAt, isError, errorUpdatedAt };
+function meta(
+  dataUpdatedAt: number,
+  isError = false,
+  errorUpdatedAt = 0,
+  isFetching = false
+): OperateQueryMeta {
+  return { dataUpdatedAt, isError, errorUpdatedAt, isFetching };
 }
 
 function renderOperate(initialPipeline: SchemaV1Pipeline, initialMeta: OperateQueryMeta) {
@@ -158,11 +163,14 @@ describe('usePipelineOperate — the reconciliation gate (the crux)', () => {
     });
     expect(result.current.pendingAction).toBe('stop');
 
-    // A normal poll that was already in flight lands NOW, before the mutation
-    // has resolved. It still reports the pre-mutation status (Running) and an
-    // updated (but still pre-settle) dataUpdatedAt. Must NOT clear pending or
-    // flip the label back — the mutation hasn't even settled yet.
-    rerender({ pipeline: pipeline({ status: 'STATUS_RUNNING' }), query: meta(2000) });
+    // A normal poll was already in flight (isFetching: true) BEFORE the
+    // mutation settled. Its false -> true edge happened while settledAt was
+    // still null, so it can never be mistaken for a fetch that started
+    // post-settle — that's the provenance check the fix relies on.
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(1000, false, 0, true),
+    });
     expect(result.current.pendingAction).toBe('stop');
     expect(result.current.displayStatus.label).toBe('Stopping…');
 
@@ -174,17 +182,21 @@ describe('usePipelineOperate — the reconciliation gate (the crux)', () => {
     });
     expect(result.current.pendingAction).toBe('stop'); // still pending — no post-settle fetch yet
 
-    // ANOTHER stale-looking update: same status, but crucially this simulates
-    // a fetch that STARTED before settle and is landing right after — if a
-    // naive implementation cleared pending on "any" data update rather than
-    // gating on the timestamp, this would have already reverted the label by
-    // now. It must not.
-    rerender({ pipeline: pipeline({ status: 'STATUS_RUNNING' }), query: meta(2500) });
+    // That already-in-flight poll now LANDS (isFetching: true -> false),
+    // reporting STALE (pre-mutation) status and a `dataUpdatedAt` that is now
+    // numerically newer than settledAt. A naive implementation gating on
+    // `dataUpdatedAt >= settledAt` (the review-caught bug) would revert the
+    // label here. It must not: this fetch's START predates settle, so its
+    // completion is ignored regardless of its timestamp or status content.
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(2000, false, 0, false),
+    });
     expect(result.current.pendingAction).toBe('stop');
     expect(result.current.displayStatus.label).toBe('Stopping…');
   });
 
-  it('reconciles once a fetch timestamped AFTER settle lands, and the status flips', async () => {
+  it('reconciles once a fetch that STARTED after settle actually completes, and the status flips', async () => {
     let resolveStop: (() => void) | undefined;
     setStopImpl(
       () =>
@@ -210,15 +222,81 @@ describe('usePipelineOperate — the reconciliation gate (the crux)', () => {
     });
     expect(result.current.pendingAction).toBe('stop');
 
-    // A fetch guaranteed to have started after settle lands: dataUpdatedAt
-    // is now far ahead of anything before settle, and the status has
-    // actually flipped.
+    // A fetch STARTS now — settledAt is already recorded, so this false ->
+    // true edge proves it was issued post-mutation. Not yet complete, so
+    // pending must still hold — only completion reconciles.
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(1000, false, 0, true),
+    });
+    expect(result.current.pendingAction).toBe('stop');
+    expect(result.current.displayStatus.label).toBe('Stopping…');
+
+    // That same fetch COMPLETES (isFetching -> false), reporting fresh,
+    // flipped status.
     rerender({
       pipeline: pipeline({ status: 'STATUS_STOPPED', stoppedReason: 'STOPPED_REASON_USER' }),
-      query: meta(Date.now() + 10_000),
+      query: meta(2000, false, 0, false),
     });
     expect(result.current.pendingAction).toBeNull();
     expect(result.current.displayStatus.label).toBe('Stopped');
+  });
+
+  it('ADVERSARIAL (review-caught bug): a stale-but-late completion with dataUpdatedAt >= settledAt must NOT clear pendingAction unless a fetch genuinely started post-settle — fails against the old timestamp-only gate, passes against the fix', async () => {
+    // Fixes the magnitude bug the reviewer identified in this suite: without
+    // `vi.setSystemTime`, `Date.now()` (used for `mutationSettledAtRef`) stays
+    // at the real epoch (~1.7e12) while this suite's meta() numbers are tiny,
+    // so `dataUpdatedAt >= settledAt` was ALWAYS false by sheer magnitude —
+    // never exercising the stale-but-late path the review flagged. Pinning
+    // the clock makes dataUpdatedAt and settledAt directly comparable, so
+    // this test is actually meaningful.
+    const base = 1_700_000_000_000;
+    vi.setSystemTime(base);
+
+    let resolveStop: (() => void) | undefined;
+    setStopImpl(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStop = resolve;
+        })
+    );
+
+    const { result, rerender } = renderOperate(pipeline({ status: 'STATUS_RUNNING' }), meta(base));
+
+    act(() => result.current.armStop());
+    await act(async () => {
+      result.current.confirmStop();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.pendingAction).toBe('stop');
+
+    // Settle at base + 50 (mutationSettledAtRef = Date.now() at that point).
+    vi.setSystemTime(base + 50);
+    await act(async () => {
+      resolveStop?.();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.pendingAction).toBe('stop');
+
+    // A poll that was ALREADY in flight before settle lands now, at
+    // base + 100. Its dataUpdatedAt (base + 100) IS >= settledAt (base + 50)
+    // — the OLD gate's entire condition — yet the status is STILL
+    // STATUS_RUNNING (stale, pre-mutation), and `isFetching` never made a
+    // false -> true transition after settle in this sequence (only its
+    // completion, isFetching: false, is observed here) — so the fix's
+    // provenance check correctly withholds reconciliation.
+    //
+    // Against the pre-fix gate (`if (query.dataUpdatedAt >= settledAt)
+    // clear`), the assertions below FAIL: base + 100 >= base + 50 is true, so
+    // the old code clears pendingAction and the label reverts to "Running" —
+    // the exact silent revert the review caught. Against the fix, they PASS.
+    vi.setSystemTime(base + 100);
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(base + 100, false, 0, false),
+    });
+    expect(result.current.pendingAction).toBe('stop');
+    expect(result.current.displayStatus.label).toBe('Stopping…');
   });
 
   it('keeps pending and adds a connection-issue note if the post-settle reconciliation fetch errors', async () => {
@@ -244,7 +322,18 @@ describe('usePipelineOperate — the reconciliation gate (the crux)', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    rerender({ pipeline: pipeline({ status: 'STATUS_RUNNING' }), query: meta(1000, true) });
+    // The post-settle reconciliation fetch starts...
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(1000, false, 0, true),
+    });
+    expect(result.current.pendingAction).toBe('stop');
+
+    // ...and completes as a failure.
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(1000, true, 1500, false),
+    });
     expect(result.current.pendingAction).toBe('stop');
     expect(result.current.reconcileNote).toMatch(/connection issue/);
   });
@@ -259,13 +348,11 @@ describe('usePipelineOperate — the reconciliation gate (the crux)', () => {
     );
     // The query is already erroring (e.g. a pre-existing connectivity blip)
     // before the user ever clicks Stop — isError is `true` from the start and
-    // NEVER flips (it's true before, during, and after). dataUpdatedAt is also
-    // frozen (a failed fetch doesn't advance it). If the reconciliation effect
-    // depended only on `dataUpdatedAt`/`isError`, it would have nothing to
-    // re-run on post-settle and the note could never appear. `errorUpdatedAt`
-    // (TanStack's per-failed-attempt timestamp) is what still advances here —
-    // simulating the retry that happens after the mutation's onSettled
-    // invalidation kicks off a refetch that ALSO fails.
+    // NEVER flips (it's true before, during, and after). What retriggers the
+    // reconciliation effect post-settle is `isFetching`'s own false -> true ->
+    // false cycle (the retry attempt itself), not a change in
+    // isError/errorUpdatedAt — so this scenario is exercised correctly even
+    // though isError never toggles.
     const { result, rerender } = renderOperate(
       pipeline({ status: 'STATUS_RUNNING' }),
       meta(1000, true, 500)
@@ -280,9 +367,19 @@ describe('usePipelineOperate — the reconciliation gate (the crux)', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    // Same isError value as before (true), same frozen dataUpdatedAt — only
-    // errorUpdatedAt moved, from the post-settle refetch's own failure.
-    rerender({ pipeline: pipeline({ status: 'STATUS_RUNNING' }), query: meta(1000, true, 2000) });
+    // A retry attempt starts post-settle...
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(1000, true, 500, true),
+    });
+    expect(result.current.pendingAction).toBe('stop');
+
+    // ...and fails again (same isError value as before — only errorUpdatedAt
+    // and isFetching moved).
+    rerender({
+      pipeline: pipeline({ status: 'STATUS_RUNNING' }),
+      query: meta(1000, true, 2000, false),
+    });
     expect(result.current.pendingAction).toBe('stop');
     expect(result.current.reconcileNote).toMatch(/connection issue/);
   });

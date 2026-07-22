@@ -14,10 +14,13 @@ interface PipelineRowProps {
    * Metadata of the fleet list query (shared by every row) — threaded down so
    * OperateControls' reconciliation gate compares against the SAME query that
    * supplies `entry.pipeline`. See usePipelineOperate's doc comment.
+   * `isFetching` is what the gate actually watches; `dataUpdatedAt` /
+   * `errorUpdatedAt` are informational.
    */
   dataUpdatedAt: number;
   isQueryError: boolean;
   errorUpdatedAt: number;
+  isFetching: boolean;
 }
 
 export function PipelineRow({
@@ -26,6 +29,7 @@ export function PipelineRow({
   dataUpdatedAt,
   isQueryError,
   errorUpdatedAt,
+  isFetching,
 }: PipelineRowProps) {
   const [open, setOpen] = useState(false);
   const errorId = useId();
@@ -41,7 +45,7 @@ export function PipelineRow({
         </Link>
         <OperateControls
           pipeline={entry.pipeline}
-          query={{ dataUpdatedAt, isError: isQueryError, errorUpdatedAt }}
+          query={{ dataUpdatedAt, isError: isQueryError, errorUpdatedAt, isFetching }}
         />
         {entry.errorLine && (
           <span className={styles.errorLine} title={entry.errorLine}>

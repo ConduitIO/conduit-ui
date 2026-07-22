@@ -20,6 +20,7 @@ export function FleetView() {
       error={query.error}
       dataUpdatedAt={query.dataUpdatedAt}
       errorUpdatedAt={query.errorUpdatedAt}
+      isFetching={query.isFetching}
     />
   );
 }
@@ -33,14 +34,21 @@ export interface FleetContentProps {
   baseUrl?: string | undefined;
   /**
    * Epoch ms of this query's last successful fetch, and last FAILED fetch
-   * attempt. Threaded down to each row's OperateControls (UI-6) — the operate
-   * reconciliation gate must compare against the SAME query that supplies
-   * `pipelines` here (all rows share one list query, so one pair of
-   * timestamps for all of them). Default to 0 in tests/call sites that don't
+   * attempt. Threaded down to each row's OperateControls (UI-6) as
+   * informational metadata (all rows share one list query, so one set of
+   * values for all of them). Default to 0 in tests/call sites that don't
    * exercise operate reconciliation.
    */
   dataUpdatedAt?: number;
   errorUpdatedAt?: number;
+  /**
+   * True while this query's most recent fetch attempt is in flight. This is
+   * what each row's operate reconciliation gate actually watches — it must
+   * compare against the SAME query that supplies `pipelines` here — see
+   * usePipelineOperate's doc comment. Default to false in tests/call sites
+   * that don't exercise operate reconciliation.
+   */
+  isFetching?: boolean;
 }
 
 // Health-first landing view. Answers "is anything wrong?" with zero clicks (the
@@ -55,6 +63,7 @@ export function FleetContent({
   baseUrl,
   dataUpdatedAt = 0,
   errorUpdatedAt = 0,
+  isFetching = false,
 }: FleetContentProps) {
   const hasData = pipelines !== undefined;
 
@@ -116,6 +125,7 @@ export function FleetContent({
               dataUpdatedAt={dataUpdatedAt}
               isQueryError={isError}
               errorUpdatedAt={errorUpdatedAt}
+              isFetching={isFetching}
             />
           )}
           {model.running.length > 0 && (
@@ -126,6 +136,7 @@ export function FleetContent({
               dataUpdatedAt={dataUpdatedAt}
               isQueryError={isError}
               errorUpdatedAt={errorUpdatedAt}
+              isFetching={isFetching}
             />
           )}
           {model.calm.length > 0 && (
@@ -136,6 +147,7 @@ export function FleetContent({
               dataUpdatedAt={dataUpdatedAt}
               isQueryError={isError}
               errorUpdatedAt={errorUpdatedAt}
+              isFetching={isFetching}
             />
           )}
           {model.unknown.length > 0 && (
@@ -146,6 +158,7 @@ export function FleetContent({
               dataUpdatedAt={dataUpdatedAt}
               isQueryError={isError}
               errorUpdatedAt={errorUpdatedAt}
+              isFetching={isFetching}
             />
           )}
         </>
@@ -198,6 +211,7 @@ function FleetSection({
   dataUpdatedAt,
   isQueryError,
   errorUpdatedAt,
+  isFetching,
 }: {
   title: string;
   tone: 'attention' | 'calm';
@@ -206,6 +220,7 @@ function FleetSection({
   dataUpdatedAt: number;
   isQueryError: boolean;
   errorUpdatedAt: number;
+  isFetching: boolean;
 }) {
   return (
     <section
@@ -225,6 +240,7 @@ function FleetSection({
             dataUpdatedAt={dataUpdatedAt}
             isQueryError={isQueryError}
             errorUpdatedAt={errorUpdatedAt}
+            isFetching={isFetching}
           />
         ))}
       </ul>

@@ -16,26 +16,38 @@ export type PendingAction = 'start' | 'stop' | null;
  * Callers must pass the metadata of whichever query drives the `pipeline` prop
  * they're rendering (the fleet list query on a fleet row, the per-id detail
  * query on the detail page): the reconciliation gate below only holds if
- * `dataUpdatedAt` is a timestamp from the same query whose data eventually
- * flips `pipeline.state.status`.
+ * `isFetching` (and `isError`) come from that same query — the one whose
+ * fetch cycle eventually flips `pipeline.state.status`.
  */
 export interface OperateQueryMeta {
-  /** Epoch ms of the query's most recent successful fetch. */
+  /**
+   * Epoch ms of the query's most recent successful fetch. Informational only
+   * — kept for callers/consumers that want it, but NOT used to gate
+   * reconciliation below (see `isFetching`'s doc comment for why a completion
+   * timestamp alone is unsafe for that).
+   */
   dataUpdatedAt: number;
   /** True while the query's most recent fetch attempt failed. */
   isError: boolean;
   /**
    * Epoch ms of the query's most recent FAILED fetch attempt (TanStack's
-   * `errorUpdatedAt`). Required as its own field — not derivable from
-   * `isError` — because a pre-existing outage (isError already `true` before
-   * the user clicks, and staying `true` after) never toggles, and a failed
-   * fetch never advances `dataUpdatedAt` either. Without a value that changes
-   * on every attempt (even repeated identical-looking failures), the
-   * reconciliation effect below would have nothing to re-run on and the
-   * "connection issue" note could silently never appear during a standing
-   * outage. Default to 0 if the caller has no better value.
+   * `errorUpdatedAt`). Informational only, same caveat as `dataUpdatedAt`.
    */
   errorUpdatedAt: number;
+  /**
+   * True while the query's most recent fetch attempt is in flight (TanStack's
+   * `isFetching`, i.e. `fetchStatus === 'fetching'`). This — not
+   * `dataUpdatedAt` — is what the reconciliation effect below gates on: it
+   * watches for this flipping false -> true AFTER the mutation settles, which
+   * proves a fetch genuinely STARTED post-mutation, then waits for that same
+   * fetch to complete (true -> false) before trusting its result. A poll
+   * already in flight when the user clicks Stop flips false -> true BEFORE
+   * settle, so its later completion is correctly ignored even though it can
+   * still land (with stale, pre-mutation data) after the mutation resolves —
+   * the bug a plain `dataUpdatedAt >= settledAt` completion-timestamp
+   * comparison could not distinguish from a genuine post-settle fetch.
+   */
+  isFetching: boolean;
 }
 
 export interface UsePipelineOperateResult {
@@ -80,17 +92,32 @@ function errorMessage(err: unknown): string {
 /**
  * The optimistic-window + multi-actor reconciliation state machine for
  * operate (start/stop). See docs/design-documents for the full writeup; the
- * crux is the reconciliation effect below: `pendingAction` clears only when
- * `query.dataUpdatedAt >= mutationSettledAt`, a timestamp comparison rather
- * than a status comparison. That distinction matters because a normal 3s poll
- * can already be in flight when the user confirms Stop; that poll still
- * carries pre-mutation data (e.g. STATUS_RUNNING) and can land AFTER the
- * mutation resolves. Clearing `pendingAction` on that stale response — because
- * "data changed" or "a fetch happened" — would flip the label back to
- * "Running" for a moment even though the stop is still genuinely in progress:
- * a silent, confusing revert. Gating on the fetch's timestamp instead of its
- * content guarantees we only reconcile against a fetch that is guaranteed to
- * have started after the mutation genuinely completed.
+ * crux is the reconciliation effect below: `pendingAction` clears only once a
+ * fetch attempt that genuinely STARTED after the mutation settled has also
+ * COMPLETED — gated on `query.isFetching`'s false -> true -> false cycle
+ * relative to `mutationSettledAtRef`, not on comparing completion timestamps.
+ *
+ * That distinction matters because a normal 3s poll can already be in flight
+ * when the user confirms Stop; that poll still carries pre-mutation data
+ * (e.g. STATUS_RUNNING) and can COMPLETE after the mutation resolves, with a
+ * `dataUpdatedAt` newer than `mutationSettledAt` even though the fetch itself
+ * started before the mutation was even sent. A completion-timestamp
+ * comparison (`dataUpdatedAt >= settledAt`) cannot tell that apart from a
+ * genuine post-settle fetch, and clearing `pendingAction` on it would flip
+ * the label back to "Running" for a moment even though the stop is still
+ * genuinely in progress — a silent, confusing revert, and exactly the bug
+ * this hook exists to prevent.
+ *
+ * Watching `isFetching`'s START edge instead closes that gap: a fetch already
+ * in flight when the mutation settles never produces a false -> true
+ * transition afterwards, so its later completion is correctly ignored. Only a
+ * fetch whose start we can prove happened after `mutationSettledAtRef` is
+ * trusted, and only once IT completes (its own false -> true -> false cycle)
+ * do we act on `query.isError` at that moment to decide reconcile-success vs.
+ * a connection-issue note. Status content is never consulted for this
+ * decision — a legitimate no-op (e.g. Stop confirming a pipeline that somehow
+ * reports the same status) must still reconcile, so gating is purely on fetch
+ * provenance, never on "did the status value change."
  */
 export function usePipelineOperate(
   pipeline: SchemaV1Pipeline | undefined,
@@ -111,6 +138,16 @@ export function usePipelineOperate(
   const mutationSettledAtRef = useRef<number | null>(null);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ceilingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True once we've observed a fetch attempt whose START (isFetching
+  // false -> true) happened while `mutationSettledAtRef` was already set —
+  // i.e. a fetch guaranteed to have been issued after the mutation settled.
+  // Only THIS fetch's own completion is trusted to reconcile `pendingAction`;
+  // see the function doc comment above.
+  const genuineFetchInFlightRef = useRef(false);
+  // Previous `query.isFetching`, so the effect below can detect edges
+  // (false -> true, true -> false) instead of re-acting on every render that
+  // merely repeats the same value.
+  const prevIsFetchingRef = useRef(query.isFetching);
 
   const status = statusOf(pipeline);
 
@@ -142,31 +179,47 @@ export function usePipelineOperate(
   }, [status, confirmingStop, clearConfirmTimer]);
 
   // The reconciliation gate (the crux — see the function doc comment above).
-  // Both branches only apply once the mutation has settled
-  // (`mutationSettledAtRef.current !== null`); before that, a query error or a
-  // stale dataUpdatedAt says nothing about the mutation's own outcome.
+  // Only applies once the mutation has settled (`mutationSettledAtRef.current
+  // !== null`); before that, nothing the query reports says anything about
+  // the mutation's own outcome yet.
   //
-  // `query.errorUpdatedAt` (not `query.isError`) is the dependency that makes
-  // the connection-issue branch reliable: a connectivity problem that already
-  // existed BEFORE the click — `isError` already `true`, staying `true` after
-  // — never toggles, and a failed fetch never advances `dataUpdatedAt` either.
-  // With neither in the dependency array changing value, this effect would
-  // have nothing to re-run on, and the note could silently never appear
-  // during a standing outage. `errorUpdatedAt` advances on every failed
-  // attempt (even a repeated, identical-looking one), so it's the signal that
-  // reliably re-triggers this check.
+  // `query.isFetching`'s own false -> true -> false cycle is what reliably
+  // re-triggers this effect on every fetch attempt (initial, background poll,
+  // or the invalidate-triggered refetch), including a repeated,
+  // identical-looking failure — no need for `errorUpdatedAt` as a separate
+  // dependency the way the previous (buggy) version required.
   useEffect(() => {
     const settledAt = mutationSettledAtRef.current;
+    const wasFetching = prevIsFetchingRef.current;
+    const isFetching = query.isFetching;
+    prevIsFetchingRef.current = isFetching;
+
     if (pendingAction === null || settledAt === null) return;
-    if (query.dataUpdatedAt >= settledAt) {
+
+    // A fetch attempt starting NOW, with settledAt already recorded, is
+    // guaranteed to have been issued after the mutation settled — mark it so
+    // its completion (below) can be trusted. A fetch already in flight BEFORE
+    // settle never produces this edge (it was already `true` when settledAt
+    // was set), so its eventual completion is correctly left untouched by
+    // this branch — that's the fix for the stale in-flight-poll bug.
+    if (isFetching && !wasFetching) {
+      genuineFetchInFlightRef.current = true;
+      return;
+    }
+
+    // Only react to the completion of a fetch we know started post-settle.
+    if (!isFetching && wasFetching && genuineFetchInFlightRef.current) {
+      genuineFetchInFlightRef.current = false;
+      if (query.isError) {
+        setReconcileNote('confirming — connection issue');
+        return;
+      }
       setPendingAction(null);
       setReconcileNote(undefined);
       mutationSettledAtRef.current = null;
       clearCeilingTimer();
-    } else if (query.isError) {
-      setReconcileNote('confirming — connection issue');
     }
-  }, [query.dataUpdatedAt, query.errorUpdatedAt, query.isError, pendingAction, clearCeilingTimer]);
+  }, [query.isFetching, query.isError, pendingAction, clearCeilingTimer]);
 
   useEffect(
     () => () => {
@@ -181,6 +234,7 @@ export function usePipelineOperate(
       setLastActionError(undefined);
       setReconcileNote(undefined);
       mutationSettledAtRef.current = null;
+      genuineFetchInFlightRef.current = false;
       setPendingAction(action);
       clearCeilingTimer();
       ceilingTimerRef.current = setTimeout(() => {
@@ -197,6 +251,7 @@ export function usePipelineOperate(
     (err: unknown) => {
       setPendingAction(null);
       mutationSettledAtRef.current = null;
+      genuineFetchInFlightRef.current = false;
       clearCeilingTimer();
       setLastActionError(errorMessage(err));
     },
