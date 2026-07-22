@@ -1,0 +1,146 @@
+.section {
+  margin-top: var(--conduit-space-6);
+  border-top: 1px solid var(--conduit-color-border);
+  padding-top: var(--conduit-space-4);
+}
+
+.muted {
+  color: var(--conduit-color-text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.honestyBanner {
+  padding: var(--conduit-space-3);
+  margin-bottom: var(--conduit-space-3);
+  background: var(--conduit-color-surface);
+  border-radius: var(--conduit-radius-md);
+  color: var(--conduit-color-text-muted);
+  font-size: 0.85rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--conduit-space-3);
+  margin-bottom: var(--conduit-space-3);
+}
+
+.controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--conduit-space-1);
+  font-size: 0.875rem;
+}
+
+.freezeButton {
+  border: 1px solid var(--conduit-color-border);
+  border-radius: var(--conduit-radius-sm);
+  background: var(--conduit-color-surface);
+  padding: var(--conduit-space-1) var(--conduit-space-3);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.freezeButton[aria-pressed='true'] {
+  border-color: var(--conduit-color-accent);
+  color: var(--conduit-color-accent);
+}
+
+.connectionBanner {
+  padding: var(--conduit-space-2) var(--conduit-space-3);
+  border-radius: var(--conduit-radius-sm);
+  font-size: 0.875rem;
+  margin-bottom: var(--conduit-space-3);
+}
+
+.connectionBanner[data-tone='connecting'] {
+  background: var(--conduit-color-surface);
+  color: var(--conduit-color-text-muted);
+}
+
+.connectionBanner[data-tone='reconnecting'] {
+  background: color-mix(in srgb, var(--conduit-color-status-recovering) 12%, transparent);
+  border: 1px solid var(--conduit-color-status-recovering);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table caption {
+  text-align: left;
+  color: var(--conduit-color-text-muted);
+  margin-bottom: var(--conduit-space-2);
+  font-size: 0.8rem;
+}
+
+.table th,
+.table td {
+  padding: var(--conduit-space-1) var(--conduit-space-2);
+  border-bottom: 1px solid var(--conduit-color-border);
+  text-align: left;
+}
+
+.mono {
+  font-family: var(--conduit-font-mono);
+  font-size: 0.8rem;
+}
+
+/* New-row highlight-flash: every row mounts once per distinct record (React
+   key = the record's position), so this plays exactly once, on insertion —
+   `@starting-style` seeds the "just arrived" background, and the standing
+   `transition` animates it back to transparent over the next frame. No JS
+   timer/rAF bookkeeping needed to know a row is "new". */
+.row {
+  background-color: transparent;
+  transition: background-color 600ms ease-out;
+}
+
+@starting-style {
+  .row {
+    background-color: color-mix(in srgb, var(--conduit-color-accent) 18%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}
+
+.viewButton {
+  border: 1px solid var(--conduit-color-border);
+  border-radius: var(--conduit-radius-sm);
+  background: var(--conduit-color-bg);
+  padding: 2px var(--conduit-space-2);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.dropStrip {
+  margin-top: var(--conduit-space-3);
+  font-size: 0.8rem;
+  color: var(--conduit-color-text-muted);
+}
+
+.dropStrip p {
+  margin: 0;
+}
