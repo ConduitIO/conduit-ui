@@ -10,6 +10,7 @@ import { describePipelineStatus } from '../../domain/pipelineStatus';
 import { StatusPill } from '../../components/StatusPill';
 import { buildTopologyModel } from './topology';
 import { TopologyGraph } from './TopologyGraph';
+import { RecordFlow } from './recordFlow/RecordFlow';
 import styles from './PipelineDetail.module.css';
 
 // Minimal read-only view of the query state each section needs; typed as a subset
@@ -169,7 +170,13 @@ function TopologySection({
           this UI observes pipelines, it doesn’t author them.
         </p>
       ) : (
-        <TopologyGraph model={model} pipelineName={pipelineName} />
+        <>
+          <TopologyGraph model={model} pipelineName={pipelineName} />
+          {/* UI-4: live record flow + per-stage diff, keyed off the same
+              topology model so stage ordering can never drift from the graph
+              above it (see recordFlow/stages.ts). */}
+          <RecordFlow model={model} pipelineName={pipelineName} />
+        </>
       )}
     </>
   );

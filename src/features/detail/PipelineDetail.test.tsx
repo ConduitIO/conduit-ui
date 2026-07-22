@@ -1,6 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, within, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, screen, within, cleanup, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import axe from 'axe-core';
 import type {
   SchemaV1Pipeline,
@@ -42,20 +43,43 @@ function q<T>(data: T | undefined, over: Partial<Q<T>> = {}): Q<T> {
   return { data, isPending: false, isError: false, error: null, ...over };
 }
 
+// UI-4's RecordFlow (rendered inside TopologySection's non-empty branch) needs
+// a QueryClientProvider (useDropRates) and opens real Inspect websockets for
+// the primary stage (useStageStreams) — neither existed when this file was
+// written for UI-3. A no-op FakeWS + a resolved-empty fetch keep these tests
+// from attempting a real network connection; QueryClient retry is off so a
+// failed /metrics poll doesn't slow the test down.
+class NoopFakeWebSocket {
+  addEventListener() {
+    /* never emits — these tests don't exercise live record flow */
+  }
+  close() {
+    /* no-op */
+  }
+}
+
 function renderContent(props: Partial<PipelineDetailContentProps> = {}) {
+  vi.stubGlobal('WebSocket', NoopFakeWebSocket);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') }));
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
-      <PipelineDetailContent
-        id={props.id ?? 'p1'}
-        detail={props.detail ?? q(pipeline())}
-        topology={props.topology ?? q(topo())}
-        baseUrl={props.baseUrl}
-      />
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <PipelineDetailContent
+          id={props.id ?? 'p1'}
+          detail={props.detail ?? q(pipeline())}
+          topology={props.topology ?? q(topo())}
+          baseUrl={props.baseUrl}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('PipelineDetailContent — identity & status', () => {
   it('AC1: renders name, id, description and the status badge from describePipelineStatus', () => {
@@ -193,13 +217,17 @@ describe('PipelineDetailContent — reconciliation (AC8)', () => {
     });
     expect(screen.getByText('Running')).toBeTruthy();
     rerender(
-      <MemoryRouter>
-        <PipelineDetailContent
-          id="p1"
-          detail={q(pipeline({ state: { status: 'STATUS_DEGRADED', error: 'boom' } }))}
-          topology={q(topo())}
-        />
-      </MemoryRouter>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <MemoryRouter>
+          <PipelineDetailContent
+            id="p1"
+            detail={q(pipeline({ state: { status: 'STATUS_DEGRADED', error: 'boom' } }))}
+            topology={q(topo())}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
     );
     expect(screen.getByText('Degraded')).toBeTruthy();
   });
@@ -219,6 +247,15 @@ describe('PipelineDetailContent — a11y & scale', () => {
     const graph = screen.getByRole('region', { name: /topology/i });
     expect(within(graph).getAllByRole('listitem').length).toBeGreaterThan(0);
     expect(graph.textContent).toMatch(/data flows left to right/i);
+    // Flushes RecordFlow's stubbed-fetch promise chain (useDropRates' first
+    // poll). TanStack Query's internal notifyManager schedules the resulting
+    // state update via a real macrotask (`setTimeout(fn, 0)`), not just a
+    // microtask, so a plain `await act(async () => {})` isn't enough — this
+    // waits a real tick, inside `act`, so it lands before the `await axe.run`
+    // below rather than mid-flight and outside any act() wrapper.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     // color-contrast is disabled because jsdom can't resolve color-mix()/custom
     // properties — this asserts structural a11y, NOT verified AA contrast (that's
     // checked with real-browser tooling, a known gap here).

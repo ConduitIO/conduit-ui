@@ -1,0 +1,173 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, black 40%, transparent);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 100;
+}
+
+.drawer {
+  background: var(--conduit-color-bg);
+  border-left: 1px solid var(--conduit-color-border);
+  width: min(560px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--conduit-space-4);
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--conduit-space-3);
+}
+
+.drawerHeader h4 {
+  margin: 0;
+}
+
+.closeButton {
+  border: 1px solid var(--conduit-color-border);
+  border-radius: var(--conduit-radius-sm);
+  background: var(--conduit-color-surface);
+  padding: var(--conduit-space-1) var(--conduit-space-3);
+  cursor: pointer;
+}
+
+.drawerMeta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--conduit-space-1) var(--conduit-space-3);
+  font-size: 0.875rem;
+  margin-bottom: var(--conduit-space-4);
+}
+
+.drawerMeta dt {
+  color: var(--conduit-color-text-muted);
+}
+
+.mono {
+  font-family: var(--conduit-font-mono);
+}
+
+.block {
+  margin-bottom: var(--conduit-space-4);
+}
+
+.block h5 {
+  margin: 0 0 var(--conduit-space-1);
+}
+
+.pre {
+  background: var(--conduit-color-surface);
+  border-radius: var(--conduit-radius-sm);
+  padding: var(--conduit-space-2);
+  overflow-x: auto;
+  font-family: var(--conduit-font-mono);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.token[data-kind='key'] {
+  color: var(--conduit-color-accent);
+}
+.token[data-kind='string'] {
+  color: var(--conduit-color-status-running);
+}
+.token[data-kind='number'],
+.token[data-kind='boolean'] {
+  color: var(--conduit-color-status-recovering);
+}
+.token[data-kind='null'] {
+  color: var(--conduit-color-text-muted);
+}
+
+.showFullButton {
+  margin-top: var(--conduit-space-1);
+  border: 1px solid var(--conduit-color-border);
+  border-radius: var(--conduit-radius-sm);
+  background: var(--conduit-color-bg);
+  padding: 2px var(--conduit-space-2);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.diffHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--conduit-space-2);
+}
+
+.diffHeader label {
+  font-size: 0.8rem;
+  color: var(--conduit-color-text-muted);
+}
+
+.stageDiffList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stageDiffItem {
+  border-top: 1px solid var(--conduit-color-border);
+  padding: var(--conduit-space-2) 0;
+}
+
+.stageDiffLabel {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.notObserved {
+  color: var(--conduit-color-text-muted);
+  font-size: 0.8rem;
+  margin-left: var(--conduit-space-2);
+}
+
+.baselineTag {
+  color: var(--conduit-color-text-muted);
+  font-size: 0.8rem;
+  margin-left: var(--conduit-space-2);
+}
+
+.fieldDiffList {
+  list-style: none;
+  margin: var(--conduit-space-1) 0 0;
+  padding: 0;
+  font-family: var(--conduit-font-mono);
+  font-size: 0.8rem;
+}
+
+.fieldDiffList li {
+  padding: 1px 0;
+}
+
+.fieldDiffList li[data-diff-kind='added'] {
+  color: var(--conduit-color-diff-added);
+}
+.fieldDiffList li[data-diff-kind='removed'] {
+  color: var(--conduit-color-diff-removed);
+}
+.fieldDiffList li[data-diff-kind='changed'] {
+  color: var(--conduit-color-diff-changed);
+}
+.fieldDiffList li[data-diff-kind='unchanged'] {
+  color: var(--conduit-color-text-muted);
+}
+
+.diffGlyph {
+  display: inline-block;
+  width: 1.25em;
+}
+
+.diffPath {
+  font-weight: 600;
+}
+
+.diffValue {
+  color: var(--conduit-color-text-muted);
+}

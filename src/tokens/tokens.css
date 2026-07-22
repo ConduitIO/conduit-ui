@@ -23,6 +23,11 @@
   --conduit-color-status-degraded: #d64545;
   --conduit-color-status-recovering: #d99e00;
   --conduit-color-status-unknown: #8a93a0;
+  /* Per-stage record diff (UI-4). Never the sole signal — always paired with a
+     +/-/~ glyph and a text label (see recordFlow/Drawer.tsx). */
+  --conduit-color-diff-added: #1f9d55;
+  --conduit-color-diff-removed: #d64545;
+  --conduit-color-diff-changed: #d99e00;
 
   /* Spacing */
   --conduit-space-1: 0.25rem;
@@ -52,5 +57,8 @@
     --conduit-color-text-muted: #9aa4b1;
     --conduit-color-border: #2b313a;
     --conduit-color-accent: #5b8bf5;
+    --conduit-color-diff-added: #35c46b;
+    --conduit-color-diff-removed: #e3685f;
+    --conduit-color-diff-changed: #e0b13a;
   }
 }
