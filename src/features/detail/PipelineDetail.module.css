@@ -187,6 +187,38 @@
   color: var(--conduit-color-text-muted);
 }
 
+.nodeMetric {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--conduit-space-1) var(--conduit-space-2);
+}
+
+.nodeMetricRate {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--conduit-color-text-muted);
+}
+
+.nodeMetric[data-activity='flowing'] .nodeMetricRate {
+  color: var(--conduit-color-status-running);
+}
+
+.nodeMetricTag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--conduit-color-text-muted);
+  background: color-mix(in srgb, var(--conduit-color-text-muted) 12%, transparent);
+}
+
+.nodeMetric[data-slow='true'] .nodeMetricTag {
+  color: var(--conduit-color-status-recovering);
+  background: color-mix(in srgb, var(--conduit-color-status-recovering) 14%, transparent);
+}
+
 .subProcessors {
   list-style: none;
   margin: var(--conduit-space-1) 0 0;
