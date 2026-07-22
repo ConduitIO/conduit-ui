@@ -27,18 +27,27 @@ function pipe(
   };
 }
 
+// OperateControls (UI-6), rendered per-row, uses TanStack Query mutations —
+// every render needs a QueryClientProvider ancestor even in these
+// props-fixture tests.
 function renderContent(props: Partial<React.ComponentProps<typeof FleetContent>> = {}) {
-  return render(
-    <MemoryRouter>
-      <FleetContent
-        pipelines={props.pipelines}
-        isPending={props.isPending ?? false}
-        isError={props.isError ?? false}
-        error={props.error ?? null}
-        baseUrl={props.baseUrl}
-      />
-    </MemoryRouter>
+  const queryClient = new QueryClient();
+  const result = render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <FleetContent
+          pipelines={props.pipelines}
+          isPending={props.isPending ?? false}
+          isError={props.isError ?? false}
+          error={props.error ?? null}
+          baseUrl={props.baseUrl}
+          dataUpdatedAt={props.dataUpdatedAt ?? 0}
+          errorUpdatedAt={props.errorUpdatedAt ?? 0}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>
   );
+  return { ...result, queryClient };
 }
 
 afterEach(() => {
@@ -163,45 +172,97 @@ describe('FleetContent — resilience (AC10)', () => {
 describe('FleetContent — reconciliation (AC9)', () => {
   it('a status change between fetches moves a pipeline into needs-attention', () => {
     const before = [pipe('p', 'STATUS_RUNNING', { name: 'flipper' })];
-    const { rerender } = renderContent({ pipelines: before });
+    const { rerender, queryClient } = renderContent({ pipelines: before });
     expect(screen.queryByRole('region', { name: /Needs attention/i })).toBeNull();
     rerender(
-      <MemoryRouter>
-        <FleetContent
-          pipelines={[pipe('p', 'STATUS_DEGRADED', { name: 'flipper', error: 'went bad' })]}
-          isPending={false}
-          isError={false}
-          error={null}
-        />
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <FleetContent
+            pipelines={[pipe('p', 'STATUS_DEGRADED', { name: 'flipper', error: 'went bad' })]}
+            isPending={false}
+            isError={false}
+            error={null}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
     );
     const attention = screen.getByRole('region', { name: /Needs attention/i });
     expect(within(attention).getByRole('link', { name: 'flipper' })).toBeTruthy();
   });
 
   it('a stopped_reason transition (system -> user) re-buckets the pipeline', () => {
-    const { rerender } = renderContent({
+    const { rerender, queryClient } = renderContent({
       pipelines: [
         pipe('p', 'STATUS_STOPPED', { name: 'resumed', reason: 'STOPPED_REASON_SYSTEM' }),
       ],
     });
     expect(screen.getByRole('region', { name: /Needs attention/i })).toBeTruthy();
     rerender(
-      <MemoryRouter>
-        <FleetContent
-          pipelines={[
-            pipe('p', 'STATUS_STOPPED', { name: 'resumed', reason: 'STOPPED_REASON_USER' }),
-          ]}
-          isPending={false}
-          isError={false}
-          error={null}
-        />
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <FleetContent
+            pipelines={[
+              pipe('p', 'STATUS_STOPPED', { name: 'resumed', reason: 'STOPPED_REASON_USER' }),
+            ]}
+            isPending={false}
+            isError={false}
+            error={null}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
     );
     // no longer needs attention; now a calm stopped pipeline
     expect(screen.queryByRole('region', { name: /Needs attention/i })).toBeNull();
     const stopped = screen.getByRole('region', { name: /^Stopped/i });
     expect(within(stopped).getByRole('link', { name: 'resumed' })).toBeTruthy();
+  });
+});
+
+describe('FleetContent — operate controls per row (UI-6)', () => {
+  it('a Running row exposes Stop; a Stopped row exposes Start; a Degraded row exposes Restart', () => {
+    renderContent({
+      pipelines: [
+        pipe('r', 'STATUS_RUNNING', { name: 'runner' }),
+        pipe('s', 'STATUS_STOPPED', { name: 'stopper', reason: 'STOPPED_REASON_USER' }),
+        pipe('d', 'STATUS_DEGRADED', { name: 'degrader', error: 'boom' }),
+      ],
+    });
+    const runnerRow = screen.getByRole('link', { name: 'runner' }).closest('li') as HTMLElement;
+    const stopperRow = screen.getByRole('link', { name: 'stopper' }).closest('li') as HTMLElement;
+    const degraderRow = screen.getByRole('link', { name: 'degrader' }).closest('li') as HTMLElement;
+
+    expect(within(runnerRow).getByRole('button', { name: /stop pipeline/i })).toBeTruthy();
+    expect(within(runnerRow).queryByRole('button', { name: /start pipeline/i })).toBeNull();
+
+    expect(within(stopperRow).getByRole('button', { name: 'Start pipeline' })).toBeTruthy();
+    expect(within(stopperRow).queryByRole('button', { name: /stop pipeline/i })).toBeNull();
+
+    expect(within(degraderRow).getByRole('button', { name: 'Restart pipeline' })).toBeTruthy();
+  });
+
+  it('a foreign-actor status change (no local pending action) updates the row control between renders', () => {
+    const { rerender, queryClient } = renderContent({
+      pipelines: [pipe('p', 'STATUS_RUNNING', { name: 'flipper' })],
+    });
+    const row = () => screen.getByRole('link', { name: 'flipper' }).closest('li') as HTMLElement;
+    expect(within(row()).getByRole('button', { name: /stop pipeline/i })).toBeTruthy();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <FleetContent
+            pipelines={[
+              pipe('p', 'STATUS_STOPPED', { name: 'flipper', reason: 'STOPPED_REASON_SYSTEM' }),
+            ]}
+            isPending={false}
+            isError={false}
+            error={null}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    expect(within(row()).getByRole('button', { name: 'Start pipeline' })).toBeTruthy();
+    expect(within(row()).queryByRole('button', { name: /stop pipeline/i })).toBeNull();
   });
 });
 

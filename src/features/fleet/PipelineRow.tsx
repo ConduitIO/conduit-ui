@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { StatusPill } from '../../components/StatusPill';
+import { OperateControls } from '../operate/OperateControls';
 import type { FleetEntry } from './fleet';
 import styles from './FleetView.module.css';
 
@@ -9,9 +10,27 @@ interface PipelineRowProps {
   // Needs-attention rows can expand to show the full error string; healthy rows
   // are compact and have nothing to expand.
   expandable?: boolean;
+  /**
+   * Metadata of the fleet list query (shared by every row) — threaded down so
+   * OperateControls' reconciliation gate compares against the SAME query that
+   * supplies `entry.pipeline`. See usePipelineOperate's doc comment.
+   * `isFetching` is what the gate actually watches; `dataUpdatedAt` /
+   * `errorUpdatedAt` are informational.
+   */
+  dataUpdatedAt: number;
+  isQueryError: boolean;
+  errorUpdatedAt: number;
+  isFetching: boolean;
 }
 
-export function PipelineRow({ entry, expandable = false }: PipelineRowProps) {
+export function PipelineRow({
+  entry,
+  expandable = false,
+  dataUpdatedAt,
+  isQueryError,
+  errorUpdatedAt,
+  isFetching,
+}: PipelineRowProps) {
   const [open, setOpen] = useState(false);
   const errorId = useId();
   const fullError = entry.pipeline.state?.error;
@@ -24,6 +43,10 @@ export function PipelineRow({ entry, expandable = false }: PipelineRowProps) {
         <Link className={styles.rowName} to={`/pipelines/${encodeURIComponent(entry.id)}`}>
           {entry.name}
         </Link>
+        <OperateControls
+          pipeline={entry.pipeline}
+          query={{ dataUpdatedAt, isError: isQueryError, errorUpdatedAt, isFetching }}
+        />
         {entry.errorLine && (
           <span className={styles.errorLine} title={entry.errorLine}>
             {entry.errorLine}

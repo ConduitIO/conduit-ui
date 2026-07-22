@@ -1,0 +1,22 @@
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--conduit-space-3);
+  padding: var(--conduit-space-2) var(--conduit-space-4);
+  background: color-mix(in srgb, var(--conduit-color-status-recovering) 16%, transparent);
+  border-bottom: 1px solid var(--conduit-color-status-recovering);
+  font-size: 0.85rem;
+  color: var(--conduit-color-text);
+}
+
+.dismiss {
+  flex: none;
+  padding: 0 var(--conduit-space-2);
+  font-size: 1rem;
+  line-height: 1;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
