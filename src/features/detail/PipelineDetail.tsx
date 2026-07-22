@@ -186,8 +186,23 @@ function TopologySection({
   // not, skip computing it and simply render the identity-only graph, same as
   // before this slice. A metrics-fetch failure never blanks the graph: `metrics`
   // failing degrades to no badges, mirroring `processorsUnavailable` below.
+  //
+  // Both `nodeMetrics` and `activitySummary` MUST be gated on `running` the same
+  // way: a Stopped pipeline can still be holding stale `metrics.data` from before
+  // it stopped (polling continues; byte counters stop increasing, so the derived
+  // rate settles to 0 → activity 'idle', a defined non-'unknown' state). Passing
+  // that stale snapshot through unconditionally would make TopologyGraph's
+  // screen-reader-only sentence assert "Pipeline is currently idle" for a Stopped
+  // pipeline — a false claim on the SR channel even though the visible
+  // PipelineActivityBadge correctly renders nothing (it checks `running`
+  // itself). Feeding `undefined` here instead of `metrics.data` makes
+  // summarizePipelineActivity return its 'unknown' summary, which keeps both the
+  // visual and SR channels silent together.
   const nodeMetrics = running ? attributeToNodes(model, metrics.data) : undefined;
-  const activitySummary = summarizePipelineActivity(model.destinations.length, metrics.data);
+  const activitySummary = summarizePipelineActivity(
+    model.destinations.length,
+    running ? metrics.data : undefined
+  );
 
   return (
     <>

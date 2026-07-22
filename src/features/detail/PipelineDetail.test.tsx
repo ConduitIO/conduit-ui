@@ -9,6 +9,7 @@ import type {
   SchemaApiv1Processor,
 } from '../../api/schema';
 import { PipelineNotFoundError, type Topology } from '../../api/pipelineDetail';
+import type { ConnectorRate, PipelineMetricsSnapshot } from '../../api/pipelineMetrics';
 import { PipelineDetailContent, type PipelineDetailContentProps } from './PipelineDetail';
 import '../../tokens/tokens.css';
 
@@ -58,6 +59,27 @@ class NoopFakeWebSocket {
   }
 }
 
+function rate(over: Partial<ConnectorRate> = {}): ConnectorRate {
+  return {
+    plugin: 'builtin:d1',
+    pluginType: 'destination',
+    componentId: undefined,
+    recordsPerSec: undefined,
+    bytesPerSec: undefined,
+    p95LatencySeconds: undefined,
+    ...over,
+  };
+}
+
+function metricsSnapshot(over: Partial<PipelineMetricsSnapshot> = {}): PipelineMetricsSnapshot {
+  return {
+    connectorRates: [],
+    hasComponentId: false,
+    observedAt: Date.now(),
+    ...over,
+  };
+}
+
 function renderContent(props: Partial<PipelineDetailContentProps> = {}) {
   vi.stubGlobal('WebSocket', NoopFakeWebSocket);
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') }));
@@ -69,6 +91,7 @@ function renderContent(props: Partial<PipelineDetailContentProps> = {}) {
           id={props.id ?? 'p1'}
           detail={props.detail ?? q(pipeline())}
           topology={props.topology ?? q(topo())}
+          metrics={props.metrics}
           baseUrl={props.baseUrl}
         />
       </MemoryRouter>
@@ -277,5 +300,105 @@ describe('PipelineDetailContent — a11y & scale', () => {
     expect(within(graph).getByText('builtin:s0')).toBeTruthy();
     expect(within(graph).getByText('builtin:s199')).toBeTruthy();
     expect(graph.textContent).toMatch(/200 sources/);
+  });
+});
+
+describe('PipelineDetailContent — metrics (UI-5 review fixes)', () => {
+  // Fix 1 (P1 — accessibility honesty bug): a pipeline that has gone
+  // Running -> Stopped keeps its last-polled `metrics.data` around (the query
+  // doesn't clear on state change). If a stopped pipeline's byte counters have
+  // stopped increasing, the derived rate settles at 0 -> a defined, non-'unknown'
+  // 'idle' reading. Before the fix, `activitySummary` was computed unconditionally
+  // and fed to `TopologyGraph`, whose SR-only sentence is gated only on
+  // `activity !== 'unknown'` (no concept of `running`) -> it would announce
+  // "Pipeline is currently idle" for a Stopped pipeline, a false claim on the SR
+  // channel even though the visible `PipelineActivityBadge` correctly renders
+  // nothing. This test fails against the unfixed code and passes once
+  // `activitySummary` is gated on `running` the same way `nodeMetrics` is.
+  it('Fix 1 regression: a Stopped pipeline never reports "idle"/"flowing" from stale metrics, on either the visual or SR channel', () => {
+    const built = pipeline({
+      connectorIds: ['s1', 'd1'],
+      state: { status: 'STATUS_STOPPED' },
+    });
+    const t = topo({
+      connectors: [conn('s1', 'TYPE_SOURCE'), conn('d1', 'TYPE_DESTINATION')],
+    });
+    // Stale snapshot from before the stop: a destination rate whose recordsPerSec
+    // is defined-but-zero derives to 'idle', not 'unknown'.
+    const staleMetrics = metricsSnapshot({
+      connectorRates: [
+        rate({ pluginType: 'destination', componentId: 'd1', recordsPerSec: 0, bytesPerSec: 0 }),
+      ],
+      hasComponentId: true,
+    });
+
+    renderContent({ detail: q(built), topology: q(t), metrics: q(staleMetrics) });
+
+    // The visible pipeline-level badge already guards on `running` internally —
+    // assert it stays silent (sanity check, not the regression itself).
+    expect(screen.queryByText(/idle — no recent activity/i)).toBeNull();
+    expect(screen.queryByText('Flowing')).toBeNull();
+
+    // The regression is the SR-only sentence inside the topology region, which had
+    // no `running` gate of its own before the fix.
+    const graph = screen.getByRole('region', { name: /topology/i });
+    expect(graph.textContent).not.toMatch(/idle/i);
+    expect(graph.textContent).not.toMatch(/flowing/i);
+    expect(graph.textContent).not.toMatch(/pipeline is currently/i);
+
+    // Belt-and-braces: nowhere in the document at all.
+    expect(document.body.textContent).not.toMatch(/pipeline is currently/i);
+  });
+
+  it('metrics-unavailable: /metrics failing with no prior data shows the "showing topology only" banner and keeps the topology visible', () => {
+    const built = pipeline({ connectorIds: ['s1', 'd1'] });
+    const t = topo({
+      connectors: [conn('s1', 'TYPE_SOURCE'), conn('d1', 'TYPE_DESTINATION')],
+    });
+
+    renderContent({
+      detail: q(built),
+      topology: q(t),
+      metrics: q(undefined, { isError: true, error: new Error('metrics down') }),
+    });
+
+    expect(screen.getByText(/metrics unavailable/i)).toBeTruthy();
+    expect(screen.getByText(/showing topology only/i)).toBeTruthy();
+    const graph = screen.getByRole('region', { name: /topology/i });
+    expect(within(graph).getByText('builtin:s1')).toBeTruthy();
+    expect(within(graph).getByText('builtin:d1')).toBeTruthy();
+  });
+
+  it('metrics-stale: /metrics failing after prior data existed shows the "may be stale" banner', () => {
+    const built = pipeline({ connectorIds: ['s1'] });
+    const t = topo({ connectors: [conn('s1', 'TYPE_SOURCE')] });
+
+    renderContent({
+      detail: q(built),
+      topology: q(t),
+      metrics: q(metricsSnapshot(), { isError: true, error: new Error('refresh failed') }),
+    });
+
+    expect(screen.getByText(/metrics may be stale/i)).toBeTruthy();
+  });
+
+  it('graceful degradation: a /metrics failure never blanks the topology, mirroring the processorsUnavailable contract', () => {
+    const built = pipeline({ connectorIds: ['s1', 'd1'], processorIds: ['a'] });
+    const t = topo({
+      connectors: [conn('s1', 'TYPE_SOURCE'), conn('d1', 'TYPE_DESTINATION')],
+      processors: [proc('a')],
+    });
+
+    renderContent({
+      detail: q(built),
+      topology: q(t),
+      metrics: q(undefined, { isError: true, error: new Error('down') }),
+    });
+
+    expect(screen.queryByText(/no connectors configured/i)).toBeNull();
+    const graph = screen.getByRole('region', { name: /topology/i });
+    expect(within(graph).getByText('builtin:s1')).toBeTruthy();
+    expect(within(graph).getByText('builtin:d1')).toBeTruthy();
+    expect(within(graph).getByText('builtin:a')).toBeTruthy();
   });
 });

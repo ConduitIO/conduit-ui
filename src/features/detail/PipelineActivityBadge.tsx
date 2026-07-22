@@ -33,8 +33,14 @@ export function PipelineActivityBadge({
 }) {
   if (!running || summary.activity === 'unknown') return null;
 
+  // Plain, non-live element: no `role="status"` (and its implicit
+  // `aria-live="polite"`) here. The rec/s rate inside changes on every ~5s poll
+  // while flowing, and a live region would re-announce it to screen-reader users
+  // every tick. The static SR-only sentence in TopologyGraph already conveys
+  // pipeline activity once; this badge is the sighted-user "at a glance" reading
+  // and doesn't need its own live region on top of that.
   return (
-    <div className={styles.badge} data-activity={summary.activity} role="status">
+    <div className={styles.badge} data-activity={summary.activity}>
       <span className={styles.label}>{LABEL[summary.activity]}</span>
       {summary.activity === 'flowing' && summary.recordsPerSec !== undefined && (
         <span className={styles.rate}>{formatRecordsPerSec(summary.recordsPerSec)}</span>
