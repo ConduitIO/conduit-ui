@@ -311,4 +311,34 @@ describe('RecordFlow — container smoke test', () => {
     expect(FakeWS.instances[0]?.url).toBe('ws://engine:8080/v1/connectors/src1/inspect');
     client.clear();
   });
+
+  it('the "F" Live/Freeze shortcut is disabled while a text input is focused, so typing a literal "f" is never hijacked', () => {
+    vi.stubGlobal('WebSocket', FakeWS);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') })
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <RecordFlow model={emptyModel()} pipelineName="my-pipeline" baseUrl="http://engine:8080" />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByRole('button', { name: /freeze \(f\)/i })).toBeTruthy();
+
+    const keyFilterInput = screen.getByLabelText(/^key filter$/i);
+    keyFilterInput.focus();
+    fireEvent.keyDown(keyFilterInput, { key: 'f' });
+    // Still Live — the keydown's target was the focused text input, so the
+    // shortcut must be swallowed rather than toggling Freeze.
+    expect(screen.getByRole('button', { name: /freeze \(f\)/i })).toBeTruthy();
+
+    keyFilterInput.blur();
+    fireEvent.keyDown(document, { key: 'f' });
+    // Now target is `document` (no input focused) — the shortcut fires.
+    expect(screen.getByRole('button', { name: /resume live \(f\)/i })).toBeTruthy();
+
+    client.clear();
+  });
 });

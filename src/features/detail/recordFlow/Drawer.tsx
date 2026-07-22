@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import type { SchemaV1Record } from '../../../api/schema';
 import {
@@ -30,6 +30,18 @@ export interface DrawerProps {
   stages: Stage[];
   stageBuffers: Map<string, StageBuffer>;
   onClose: () => void;
+  /**
+   * Mirrors RecordFlow's Live/Freeze toggle. Defaults to `true` so callers
+   * that don't care about freeze (most tests) get the pre-freeze-fix
+   * always-recompute behavior. See the per-stage-diff snapshot comment below
+   * for why this can't just be omitted: `stageBuffers` keeps mutating in
+   * place in the background even while frozen (useStageStreams only gates
+   * its own `forceRender`, never the underlying `appendRecord`), so without
+   * this signal the diff would keep drifting off the frozen stream on any
+   * incidental re-render (topology poll, drop-rate poll, the "show
+   * unchanged" checkbox) — silently breaking the Freeze guarantee.
+   */
+  live?: boolean;
 }
 
 type StageDiffRow =
@@ -266,7 +278,7 @@ function PayloadBlock({
  * behavior only if the trigger element still exists; RecordFlowContent's
  * "View" button is always in the DOM after the drawer closes, so this holds).
  */
-export function Drawer({ record, stages, stageBuffers, onClose }: DrawerProps) {
+export function Drawer({ record, stages, stageBuffers, onClose, live = true }: DrawerProps) {
   const [showUnchanged, setShowUnchanged] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
@@ -318,10 +330,45 @@ export function Drawer({ record, stages, stageBuffers, onClose }: DrawerProps) {
   );
   const metadataEntries = Object.entries(record.metadata ?? {});
 
-  const rows = useMemo(
-    () => buildStageDiffRows(record, stages, stageBuffers),
-    [record, stages, stageBuffers]
-  );
+  // Deliberately NOT a plain `useMemo` (review P1 fix). The old
+  // `useMemo(() => buildStageDiffRows(...), [record, stages, stageBuffers])`
+  // never recomputed: `stageBuffers` is a Map whose reference never changes
+  // for the life of the drawer — `useStageStreams` mutates each
+  // `StageBuffer`'s `records`/`byPosition` IN PLACE (`appendRecord`) — so the
+  // memo deps stayed referentially stable across the drawer's whole open
+  // lifetime and the diff froze at whatever it looked like on mount, only
+  // ever busting by the accident of a topology poll handing down a new
+  // `stages` array (see stages.ts/RecordFlow.tsx) — up to ~3s stale, and
+  // fragile if that array were ever memoized upstream.
+  //
+  // The fix has two parts:
+  //   1. Recompute on every render while `live` — no memo at all in that
+  //      branch. `RecordFlow` -> `RecordFlowContent` -> `Drawer` has no
+  //      `React.memo` boundary, so `useStageStreams`'s `forceRender` (fired
+  //      on every incoming record while live — see its `if (liveRef.current)
+  //      forceRender()`) already re-runs this function body on each arrival;
+  //      recomputing here is the cheap part of a render that already
+  //      happens (`Map.get` + flatten/diff per stage against one
+  //      already-looked-up record, not a scan of the <=75-record buffers).
+  //   2. Freeze the result while `!live`. Freezing is Live/Freeze at the
+  //      RecordFlow level, not a per-hook pause: `appendRecord` keeps
+  //      mutating every stage's buffer in the background regardless of
+  //      `live` (only `forceRender` is gated), and OTHER re-render sources
+  //      untouched by `live` still reach this component — the topology poll
+  //      handing down a new `stages` array, `useDropRates`'s independent
+  //      ~5s poll, or the "show unchanged" checkbox's local state. Without
+  //      an explicit freeze here, any of those would silently let the diff
+  //      keep drifting off the still-flowing stream while the user believes
+  //      it's frozen — exactly the bug this fix is not allowed to introduce
+  //      in the other direction. `rowsRef` pins the last-computed rows the
+  //      moment `live` goes false (or the value computed on mount if the
+  //      drawer was opened while already frozen) and only updates again once
+  //      `live` is true.
+  const rowsRef = useRef<StageDiffRow[] | undefined>(undefined);
+  if (live || rowsRef.current === undefined) {
+    rowsRef.current = buildStageDiffRows(record, stages, stageBuffers);
+  }
+  const rows = rowsRef.current;
 
   // Closes only when the click lands on the backdrop itself, not a descendant
   // — the standard "click outside to close" test — so the dialog section

@@ -355,6 +355,7 @@ export function RecordFlowContent(props: RecordFlowContentProps) {
           record={selected}
           stages={stages}
           stageBuffers={buffers}
+          live={live}
           onClose={() => setSelected(undefined)}
         />
       )}
