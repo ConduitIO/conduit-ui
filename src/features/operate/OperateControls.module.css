@@ -1,0 +1,78 @@
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--conduit-space-2);
+}
+
+.startButton,
+.stopButton {
+  flex: none;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.startButton:disabled,
+.stopButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.startButton {
+  color: var(--conduit-color-bg, #fff);
+  background: var(--conduit-color-status-running);
+  border: 1px solid var(--conduit-color-status-running);
+}
+
+.stopButton {
+  color: var(--conduit-color-status-degraded);
+  background: transparent;
+  border: 1px solid var(--conduit-color-status-degraded);
+}
+
+.stopButton[data-armed='true'] {
+  color: var(--conduit-color-bg, #fff);
+  background: var(--conduit-color-status-degraded);
+}
+
+.stopButton[data-recovering='true'] {
+  border-style: dashed;
+}
+
+.tooltip {
+  font-size: 0.8rem;
+  color: var(--conduit-color-text-muted);
+  max-width: 28rem;
+}
+
+.restartNote {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--conduit-color-text-muted);
+}
+
+.reconcileNote {
+  font-size: 0.8rem;
+  color: var(--conduit-color-text-muted);
+}
+
+.errorNote {
+  font-size: 0.8rem;
+  color: var(--conduit-color-status-degraded);
+}
+
+/* Visually hidden but available to assistive tech (mirrors PipelineDetail's .srOnly). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

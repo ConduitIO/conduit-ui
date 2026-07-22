@@ -9,6 +9,7 @@ import {
 import { usePipelineMetrics, type PipelineMetricsSnapshot } from '../../api/pipelineMetrics';
 import { describePipelineStatus } from '../../domain/pipelineStatus';
 import { StatusPill } from '../../components/StatusPill';
+import { OperateControls } from '../operate/OperateControls';
 import { buildTopologyModel } from './topology';
 import { TopologyGraph } from './TopologyGraph';
 import { RecordFlow } from './recordFlow/RecordFlow';
@@ -24,6 +25,16 @@ interface QueryLike<T> {
   isPending: boolean;
   isError: boolean;
   error: Error | null;
+  /**
+   * Epoch ms of the query's last successful fetch, and last FAILED fetch
+   * attempt. Threaded through to OperateControls (UI-6): the operate
+   * reconciliation gate must compare against the SAME query that supplies
+   * `pipeline` here, not an unrelated one — see usePipelineOperate's doc
+   * comment. Default to 0 in tests that don't care about operate
+   * reconciliation.
+   */
+  dataUpdatedAt: number;
+  errorUpdatedAt: number;
 }
 
 // Container: reads the :id route param and wires the two polling queries to the
@@ -110,6 +121,14 @@ export function PipelineDetailContent({
           {name}
         </h2>
         <StatusPill tone={display.tone} label={display.label} />
+        <OperateControls
+          pipeline={pipeline}
+          query={{
+            dataUpdatedAt: detail.dataUpdatedAt,
+            isError: detail.isError,
+            errorUpdatedAt: detail.errorUpdatedAt,
+          }}
+        />
       </header>
 
       {/* Refetch failed but we have last-known data — keep it, flag staleness. */}

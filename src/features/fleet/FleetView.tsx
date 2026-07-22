@@ -18,6 +18,8 @@ export function FleetView() {
       isPending={query.isPending}
       isError={query.isError}
       error={query.error}
+      dataUpdatedAt={query.dataUpdatedAt}
+      errorUpdatedAt={query.errorUpdatedAt}
     />
   );
 }
@@ -29,13 +31,31 @@ export interface FleetContentProps {
   error: Error | null;
   /** Engine base URL, for the unreachable-at-load message. Empty = same-origin. */
   baseUrl?: string | undefined;
+  /**
+   * Epoch ms of this query's last successful fetch, and last FAILED fetch
+   * attempt. Threaded down to each row's OperateControls (UI-6) — the operate
+   * reconciliation gate must compare against the SAME query that supplies
+   * `pipelines` here (all rows share one list query, so one pair of
+   * timestamps for all of them). Default to 0 in tests/call sites that don't
+   * exercise operate reconciliation.
+   */
+  dataUpdatedAt?: number;
+  errorUpdatedAt?: number;
 }
 
 // Health-first landing view. Answers "is anything wrong?" with zero clicks (the
 // count header + the needs-attention section above the fold) and gets to a
 // degraded pipeline's cause in <=2 (expand the row). Read-only: it observes and
 // links out; it never authors pipelines.
-export function FleetContent({ pipelines, isPending, isError, error, baseUrl }: FleetContentProps) {
+export function FleetContent({
+  pipelines,
+  isPending,
+  isError,
+  error,
+  baseUrl,
+  dataUpdatedAt = 0,
+  errorUpdatedAt = 0,
+}: FleetContentProps) {
   const hasData = pipelines !== undefined;
 
   // First load, nothing to show yet.
@@ -93,16 +113,40 @@ export function FleetContent({ pipelines, isPending, isError, error, baseUrl }: 
               tone="attention"
               entries={model.needsAttention}
               expandable
+              dataUpdatedAt={dataUpdatedAt}
+              isQueryError={isError}
+              errorUpdatedAt={errorUpdatedAt}
             />
           )}
           {model.running.length > 0 && (
-            <FleetSection title="Running" tone="calm" entries={model.running} />
+            <FleetSection
+              title="Running"
+              tone="calm"
+              entries={model.running}
+              dataUpdatedAt={dataUpdatedAt}
+              isQueryError={isError}
+              errorUpdatedAt={errorUpdatedAt}
+            />
           )}
           {model.calm.length > 0 && (
-            <FleetSection title="Stopped" tone="calm" entries={model.calm} />
+            <FleetSection
+              title="Stopped"
+              tone="calm"
+              entries={model.calm}
+              dataUpdatedAt={dataUpdatedAt}
+              isQueryError={isError}
+              errorUpdatedAt={errorUpdatedAt}
+            />
           )}
           {model.unknown.length > 0 && (
-            <FleetSection title="Unknown" tone="calm" entries={model.unknown} />
+            <FleetSection
+              title="Unknown"
+              tone="calm"
+              entries={model.unknown}
+              dataUpdatedAt={dataUpdatedAt}
+              isQueryError={isError}
+              errorUpdatedAt={errorUpdatedAt}
+            />
           )}
         </>
       )}
@@ -151,11 +195,17 @@ function FleetSection({
   tone,
   entries,
   expandable = false,
+  dataUpdatedAt,
+  isQueryError,
+  errorUpdatedAt,
 }: {
   title: string;
   tone: 'attention' | 'calm';
   entries: FleetEntry[];
   expandable?: boolean;
+  dataUpdatedAt: number;
+  isQueryError: boolean;
+  errorUpdatedAt: number;
 }) {
   return (
     <section
@@ -168,7 +218,14 @@ function FleetSection({
       </h3>
       <ul className={styles.rowList}>
         {entries.map((entry) => (
-          <PipelineRow key={entry.id} entry={entry} expandable={expandable} />
+          <PipelineRow
+            key={entry.id}
+            entry={entry}
+            expandable={expandable}
+            dataUpdatedAt={dataUpdatedAt}
+            isQueryError={isQueryError}
+            errorUpdatedAt={errorUpdatedAt}
+          />
         ))}
       </ul>
     </section>

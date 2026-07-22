@@ -2,6 +2,7 @@ import { Routes, Route, Link } from 'react-router-dom';
 import styles from './App.module.css';
 import { FleetView } from '../features/fleet/FleetView';
 import { PipelineDetail } from '../features/detail/PipelineDetail';
+import { NoAuthBanner } from '../features/operate/NoAuthBanner';
 
 // Scaffold app shell. The route split (fleet vs. pipeline detail) is the URL
 // contract the slices build into (design doc Decision 2: "separate views, not one
@@ -12,6 +13,7 @@ import { PipelineDetail } from '../features/detail/PipelineDetail';
 export function App() {
   return (
     <div className={styles.app}>
+      <NoAuthBanner />
       <header className={styles.header}>
         <Link to="/" className={styles.brand}>
           Conduit

@@ -39,9 +39,24 @@ function topo(over: Partial<Topology> = {}): Topology {
   return { connectors: [], processors: [], processorsUnavailable: false, ...over };
 }
 
-type Q<T> = { data: T | undefined; isPending: boolean; isError: boolean; error: Error | null };
+type Q<T> = {
+  data: T | undefined;
+  isPending: boolean;
+  isError: boolean;
+  error: Error | null;
+  dataUpdatedAt: number;
+  errorUpdatedAt: number;
+};
 function q<T>(data: T | undefined, over: Partial<Q<T>> = {}): Q<T> {
-  return { data, isPending: false, isError: false, error: null, ...over };
+  return {
+    data,
+    isPending: false,
+    isError: false,
+    error: null,
+    dataUpdatedAt: 0,
+    errorUpdatedAt: 0,
+    ...over,
+  };
 }
 
 // UI-4's RecordFlow (rendered inside TopologySection's non-empty branch) needs
@@ -49,7 +64,11 @@ function q<T>(data: T | undefined, over: Partial<Q<T>> = {}): Q<T> {
 // the primary stage (useStageStreams) — neither existed when this file was
 // written for UI-3. A no-op FakeWS + a resolved-empty fetch keep these tests
 // from attempting a real network connection; QueryClient retry is off so a
-// failed /metrics poll doesn't slow the test down.
+// failed /metrics poll doesn't slow the test down. OperateControls (UI-6)
+// also uses TanStack Query mutations, so every render needs the same
+// QueryClientProvider ancestor even though `detail`/`topology` here are plain
+// fixtures, not live queries. The client is returned so a rerender (the
+// reconciliation test below) can reuse the same provider instance.
 class NoopFakeWebSocket {
   addEventListener() {
     /* never emits — these tests don't exercise live record flow */
@@ -84,7 +103,7 @@ function renderContent(props: Partial<PipelineDetailContentProps> = {}) {
   vi.stubGlobal('WebSocket', NoopFakeWebSocket);
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') }));
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <PipelineDetailContent
@@ -97,6 +116,7 @@ function renderContent(props: Partial<PipelineDetailContentProps> = {}) {
       </MemoryRouter>
     </QueryClientProvider>
   );
+  return { ...result, queryClient };
 }
 
 afterEach(() => {
@@ -235,14 +255,12 @@ describe('PipelineDetailContent — resilience (AC9)', () => {
 
 describe('PipelineDetailContent — reconciliation (AC8)', () => {
   it('a status change between polls updates the badge', () => {
-    const { rerender } = renderContent({
+    const { rerender, queryClient } = renderContent({
       detail: q(pipeline({ state: { status: 'STATUS_RUNNING' } })),
     });
     expect(screen.getByText('Running')).toBeTruthy();
     rerender(
-      <QueryClientProvider
-        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-      >
+      <QueryClientProvider client={queryClient}>
         <MemoryRouter>
           <PipelineDetailContent
             id="p1"
@@ -253,6 +271,32 @@ describe('PipelineDetailContent — reconciliation (AC8)', () => {
       </QueryClientProvider>
     );
     expect(screen.getByText('Degraded')).toBeTruthy();
+  });
+});
+
+describe('PipelineDetailContent — operate controls in the header (UI-6)', () => {
+  it('a Running pipeline shows Stop next to the status badge', () => {
+    renderContent({ detail: q(pipeline({ state: { status: 'STATUS_RUNNING' } })) });
+    expect(screen.getByRole('button', { name: /stop pipeline/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /start pipeline/i })).toBeNull();
+  });
+
+  it('a Degraded pipeline shows Restart, not Start', () => {
+    renderContent({
+      detail: q(pipeline({ state: { status: 'STATUS_DEGRADED', error: 'boom' } })),
+    });
+    expect(screen.getByRole('button', { name: 'Restart pipeline' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /stop pipeline/i })).toBeNull();
+  });
+
+  it('a Stopped pipeline shows Start, not Stop', () => {
+    renderContent({
+      detail: q(
+        pipeline({ state: { status: 'STATUS_STOPPED', stoppedReason: 'STOPPED_REASON_USER' } })
+      ),
+    });
+    expect(screen.getByRole('button', { name: 'Start pipeline' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /stop pipeline/i })).toBeNull();
   });
 });
 
